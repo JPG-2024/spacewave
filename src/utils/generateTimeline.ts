@@ -632,9 +632,27 @@ export class TimelineGenerator {
     this.timelineGroup.position.x = targetX;
   }
 
+  private resizeRendererToDisplaySize(renderer: THREE.WebGLRenderer): boolean {
+    const canvas = renderer.domElement;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const needResize = canvas.width !== width || canvas.height !== height;
+    if (needResize) {
+      renderer.setSize(width, height, false);
+    }
+    return needResize;
+  }
+
   private animate(): void {
     // Schedule the next frame
     this.animationFrameId = requestAnimationFrame(this.animate.bind(this));
+
+    // Resize renderer if needed
+    if (this.renderer && this.resizeRendererToDisplaySize(this.renderer)) {
+      const canvas = this.renderer.domElement;
+      this.camera!.aspect = canvas.clientWidth / canvas.clientHeight;
+      this.camera!.updateProjectionMatrix();
+    }
 
     // Update timeline position based on playback state
     this.updateTimelinePosition();
