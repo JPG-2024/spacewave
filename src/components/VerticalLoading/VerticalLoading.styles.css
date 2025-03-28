@@ -1,0 +1,24 @@
+.vertical-loading-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.vertical-loading-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 2px;
+  animation: verticalLoadingAnimation linear infinite;
+}
+
+@keyframes verticalLoadingAnimation {
+  0% {
+    left: 0;
+    transform: translateX(0);
+  }
+  100% {
+    left: 100%;
+    transform: translateX(-100%);
+  }
+}

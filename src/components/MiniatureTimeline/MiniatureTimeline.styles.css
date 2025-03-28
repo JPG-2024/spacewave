@@ -1,0 +1,8 @@
+.miniature-timeline {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  cursor: n-resize;
+  border: 1px solid rgba(255, 255, 255, 0.421);
+  border-radius: 5px;
+}
