@@ -18,9 +18,8 @@ const VerticalLoadingLine: React.FC<VerticalLoadingLineProps> = ({
   width = '100%',
   height = '20px',
   children,
-  lineColor = '#4285f4',
   backgroundColor = 'transparent',
-  animationDuration = '0.5s',
+  animationDuration = '1s',
   lineWidth = '2px',
   conditionalRender = true,
 }) => {
@@ -37,7 +36,6 @@ const VerticalLoadingLine: React.FC<VerticalLoadingLineProps> = ({
       <div
         className="vertical-loading-line"
         style={{
-          backgroundColor: lineColor,
           animationDuration,
           width: lineWidth,
         }}

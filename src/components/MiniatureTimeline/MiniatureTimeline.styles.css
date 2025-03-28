@@ -3,6 +3,7 @@
   align-items: center;
   width: fit-content;
   cursor: n-resize;
-  border: 1px solid rgba(255, 255, 255, 0.421);
-  border-radius: 5px;
+
+  border-radius: 1px;
+  opacity: 0.3;
 }

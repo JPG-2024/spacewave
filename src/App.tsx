@@ -55,6 +55,15 @@ const App = () => {
         }
       }
 
+      if (e.key === ' ') {
+        e.preventDefault();
+        if (mixer.getIsPlaying('deck1') === true) {
+          mixer.pause('deck1')();
+        } else {
+          mixer.play('deck1')();
+        }
+      }
+
       if (e.key === 'ArrowDown') {
         e.preventDefault();
 
@@ -118,7 +127,7 @@ const App = () => {
   };
 
   return (
-    <div className="App">
+    <div className="app">
       <DroppableArea
         id="deck1"
         isLoaded={true}
@@ -136,18 +145,20 @@ const App = () => {
       </DroppableArea>
 
       {mixer.getDeckInstance('deck1') && (
-        <div className="App__bottom-bar">
+        <div className="app__bottom-bar">
           <img
-            className="App__track-cover"
+            className="app__track-cover"
             src={`http://localhost:3000/${currentUrl}.webp`}
             alt="disk-image"
           />
-          <MiniatureTimeline url={currentUrl} mixer={mixer} deckId="deck1" />
-          <PlayPauseButton
+          <div className="miniature-timeline-container">
+            <MiniatureTimeline url={currentUrl} mixer={mixer} deckId="deck1" />
+            {/*           <PlayPauseButton
             play={mixer.getDeckInstance('deck1').play}
             pause={mixer.getDeckInstance('deck1').pause}
             size="sm"
-          />
+          /> */}
+          </div>
         </div>
       )}
 

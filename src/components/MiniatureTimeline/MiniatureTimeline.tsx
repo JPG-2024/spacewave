@@ -13,7 +13,7 @@ export const MiniatureTimeline = ({
   mixer,
   width = 400,
   height = 30,
-  density = 10,
+  density = 2,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const miniatureRef = useRef(null);
@@ -35,9 +35,10 @@ export const MiniatureTimeline = ({
         pixelsPerSecond: density,
       });
       const waveformSVG = generateWaveformSVG(waveformData.waveformData, {
-        color: 'white',
+        color: '#692536',
         width,
-        height,
+        height: height,
+        amplification: 1,
       });
 
       setIsLoading(false);

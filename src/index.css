@@ -1,6 +1,8 @@
 @import 'tailwindcss';
 
 :root {
+  --primary-color: #ff4271;
+
   font-family: Monaco, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -30,4 +32,10 @@ h1 {
 }
 
 @media (prefers-color-scheme: dark) {
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }

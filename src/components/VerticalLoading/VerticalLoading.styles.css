@@ -9,6 +9,7 @@
   left: 0;
   height: 100%;
   width: 2px;
+  background-color: var(--primary-color);
   animation: verticalLoadingAnimation linear infinite;
 }
 
