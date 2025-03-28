@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from 'react';
 
 interface UseFetchResult<T> {
   data: T | null;
@@ -9,7 +9,7 @@ interface UseFetchResult<T> {
 
 export function useFetch<T, P>(
   fetcher: (params: P) => Promise<T>,
-  initialParams: P
+  initialParams: P,
 ): UseFetchResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [isloading, setIsLoading] = useState(true);
@@ -23,12 +23,12 @@ export function useFetch<T, P>(
         const result = await fetcher(parameters);
         setData(result);
       } catch (e) {
-        setError(e instanceof Error ? e : new Error("An error occurred"));
+        setError(e instanceof Error ? e : new Error('An error occurred'));
       } finally {
         setIsLoading(false);
       }
     },
-    [fetcher]
+    [fetcher],
   );
 
   const refetch = useCallback(
@@ -38,7 +38,7 @@ export function useFetch<T, P>(
       }
       await fetchData(newParams ?? params);
     },
-    [fetchData, params]
+    [fetchData, params],
   );
 
   useEffect(() => {

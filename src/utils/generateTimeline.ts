@@ -1,9 +1,9 @@
-import * as THREE from "three";
+import * as THREE from 'three';
 // Assuming WaveformDataResponse is exported from waveformTracker - Using any for now
 import {
   generateWaveformData,
   // WaveformDataResponse, // TODO: Export this type from waveformTracker.ts
-} from "@/utils/waveformTracker";
+} from '@/utils/waveformTracker';
 
 // Define colors using THREE.Color for consistency
 const HARMONIC_COLOR = new THREE.Color(0x3db8ff);
@@ -27,7 +27,7 @@ export interface PlaybackControls {
   setSeekPosition: (seekTime: number) => void;
 }
 
-type CameraPositionMode = "isometric" | "side" | "closeSide" | "closeSideRight";
+type CameraPositionMode = 'isometric' | 'side' | 'closeSide' | 'closeSideRight';
 
 // Use type intersection to combine PerspectiveCamera with our custom method
 export type CameraControls = THREE.PerspectiveCamera & {
@@ -116,7 +116,7 @@ export class TimelineGenerator {
     if (!this.container) {
       // More specific error message
       throw new Error(
-        `TimelineGenerator: Container element with id "${containerId}" not found.`
+        `TimelineGenerator: Container element with id "${containerId}" not found.`,
       );
     }
   }
@@ -135,7 +135,7 @@ export class TimelineGenerator {
 
     // Create visual elements
     this.timelineGroup = new THREE.Object3D();
-    this.timelineGroup.name = "TimelineGroup"; // For debugging
+    this.timelineGroup.name = 'TimelineGroup'; // For debugging
     this.createWaveformVisualization(); // Adds waveform and beats to timelineGroup
     this.createCenterMarker(); // Adds marker directly to the scene
 
@@ -161,7 +161,7 @@ export class TimelineGenerator {
   private setupScene(): void {
     if (!this.scene) {
       this.scene = new THREE.Scene();
-      this.scene.name = "MainScene";
+      this.scene.name = 'MainScene';
     } else {
       this.cleanupScene(); // Clear previous objects if reusing
     }
@@ -228,7 +228,7 @@ export class TimelineGenerator {
         50,
         aspect,
         0.1,
-        1000
+        1000,
       ) as CameraControls; // Increased far plane
       this.camera.position.set(0, 0, 4); // Default starting position
       this.camera.lookAt(0, 0, 0);
@@ -246,7 +246,7 @@ export class TimelineGenerator {
     // Guard clauses
     if (!this.timelineGroup || !this.waveformData) {
       console.error(
-        "Timeline group or waveform data not available for visualization."
+        'Timeline group or waveform data not available for visualization.',
       );
       return;
     }
@@ -263,7 +263,7 @@ export class TimelineGenerator {
     const points: THREE.Vector3[] = [];
     // Ensure at least two points for a line
     if (samples.length < 2) {
-      console.warn("Not enough waveform samples to draw a line.");
+      console.warn('Not enough waveform samples to draw a line.');
       return; // Or create a default line/shape
     }
     for (let i = 0; i < samples.length; i++) {
@@ -274,14 +274,14 @@ export class TimelineGenerator {
     }
 
     const waveformSegmentsGroup = new THREE.Group();
-    waveformSegmentsGroup.name = "WaveformSegments";
+    waveformSegmentsGroup.name = 'WaveformSegments';
     const timePerPoint = duration / (samples.length - 1); // Time represented by each segment
     let currentIndex = 0; // Tracks the start index for the next segment
 
     // Sort harmony sections just in case they are not ordered
     // Add type annotation for 'a' and 'b'
     harmonySections.sort(
-      (a: HarmonySection, b: HarmonySection) => a.start - b.start
+      (a: HarmonySection, b: HarmonySection) => a.start - b.start,
     );
 
     // Add type annotation for 'section'
@@ -289,11 +289,11 @@ export class TimelineGenerator {
       // Calculate start and end indices, clamping to valid range
       const startIndex = Math.max(
         0,
-        Math.min(samples.length - 1, Math.floor(section.start / timePerPoint))
+        Math.min(samples.length - 1, Math.floor(section.start / timePerPoint)),
       );
       const endIndex = Math.max(
         startIndex,
-        Math.min(samples.length - 1, Math.floor(section.end / timePerPoint))
+        Math.min(samples.length - 1, Math.floor(section.end / timePerPoint)),
       );
 
       // Create segment for non-harmonic part before this section
@@ -301,7 +301,7 @@ export class TimelineGenerator {
         const segmentPoints = points.slice(currentIndex, startIndex + 1); // Include end point
         if (segmentPoints.length > 1) {
           const geometry = new THREE.BufferGeometry().setFromPoints(
-            segmentPoints
+            segmentPoints,
           );
           const material = new THREE.LineBasicMaterial({
             color: BEAT_WAVE_COLOR,
@@ -315,7 +315,7 @@ export class TimelineGenerator {
         const segmentPoints = points.slice(startIndex, endIndex + 1); // Include end point
         if (segmentPoints.length > 1) {
           const geometry = new THREE.BufferGeometry().setFromPoints(
-            segmentPoints
+            segmentPoints,
           );
           const material = new THREE.LineBasicMaterial({
             color: HARMONIC_COLOR,
@@ -332,7 +332,7 @@ export class TimelineGenerator {
       const segmentPoints = points.slice(currentIndex);
       if (segmentPoints.length > 1) {
         const geometry = new THREE.BufferGeometry().setFromPoints(
-          segmentPoints
+          segmentPoints,
         );
         const material = new THREE.LineBasicMaterial({
           color: BEAT_WAVE_COLOR,
@@ -345,7 +345,7 @@ export class TimelineGenerator {
     // --- Create Beat Markers ---
     if (beatInterval && beatInterval > 0) {
       const beatLinesGroup = new THREE.Group();
-      beatLinesGroup.name = "BeatMarkers";
+      beatLinesGroup.name = 'BeatMarkers';
       const beatMarkMaterial = new THREE.MeshBasicMaterial({
         color: BEAT_MARK_COLOR,
         opacity: 0.6,
@@ -371,7 +371,7 @@ export class TimelineGenerator {
       // beatMarkGeometry.dispose();
       this.timelineGroup.add(beatLinesGroup);
     } else {
-      console.log("No beat interval data, skipping beat markers.");
+      console.log('No beat interval data, skipping beat markers.');
     }
   }
 
@@ -390,7 +390,7 @@ export class TimelineGenerator {
     });
 
     this.centerMarker = new THREE.Mesh(markerGeometry, markerMaterial);
-    this.centerMarker.name = "CenterMarker";
+    this.centerMarker.name = 'CenterMarker';
     // Position at the center of the viewport, slightly in front of the timeline group
     this.centerMarker.position.set(0, 0, 0.1);
     this.scene.add(this.centerMarker);
@@ -401,7 +401,7 @@ export class TimelineGenerator {
     return {
       play: (
         startTimeParam = this.audioContext.currentTime,
-        playbackRateParam = this.playbackRate
+        playbackRateParam = this.playbackRate,
       ) => {
         // If already playing or no audio context, do nothing
         if (this.isPlaying || !this.audioContext) return;
@@ -411,7 +411,7 @@ export class TimelineGenerator {
         this.isPlaying = true;
         // No need to update position here, animate loop handles it
       },
-      pause: (pausedAtParam) => {
+      pause: pausedAtParam => {
         // If not playing, do nothing
         if (!this.isPlaying) return;
 
@@ -426,17 +426,17 @@ export class TimelineGenerator {
         this.updateTimelinePosition();
       },
       // Apply a temporary offset, e.g., for beat nudging
-      setOffset: (offsetParam) => {
+      setOffset: offsetParam => {
         this.offset = offsetParam;
         // Update position immediately to reflect offset visually
         this.updateTimelinePosition();
         // Offset is reset in updateTimelinePosition after being applied
       },
       // Set the playback position directly
-      setSeekPosition: (seekTime) => {
+      setSeekPosition: seekTime => {
         const clampedSeekTime = Math.max(
           0,
-          Math.min(seekTime, this.trackDuration)
+          Math.min(seekTime, this.trackDuration),
         );
         this.pausedAt = clampedSeekTime;
         // If currently playing, we need to adjust startTime so the *next*
@@ -477,7 +477,7 @@ export class TimelineGenerator {
       this.camera!.position.lerpVectors(
         startPosition,
         targetPosition,
-        progress
+        progress,
       );
       this.camera!.lookAt(0, 0, 0); // Keep looking at the center
 
@@ -495,7 +495,7 @@ export class TimelineGenerator {
   private addEventListeners(): void {
     // Use a property to store the bound function for easy removal
     this.boundOnWindowResize = this.onWindowResize.bind(this);
-    window.addEventListener("resize", this.boundOnWindowResize);
+    window.addEventListener('resize', this.boundOnWindowResize);
 
     // Add click listener if interaction is needed
     // this.boundOnMouseClick = this.onMouseClick.bind(this);
@@ -504,7 +504,7 @@ export class TimelineGenerator {
 
   private removeEventListeners(): void {
     if (this.boundOnWindowResize) {
-      window.removeEventListener("resize", this.boundOnWindowResize);
+      window.removeEventListener('resize', this.boundOnWindowResize);
     }
     // if (this.boundOnMouseClick && this.renderer) {
     //     this.renderer.domElement.removeEventListener('click', this.boundOnMouseClick);
@@ -539,7 +539,7 @@ export class TimelineGenerator {
 
     // Option 2: Regenerate (more accurate, potentially expensive)
     console.warn(
-      "Window resized: Waveform visualization might need regeneration for accurate scaling."
+      'Window resized: Waveform visualization might need regeneration for accurate scaling.',
     );
     // If choosing regeneration:
     // 1. Remove old waveform/beat markers from timelineGroup
@@ -616,7 +616,7 @@ export class TimelineGenerator {
     // Clamp position to valid range [0, trackDuration]
     currentPosition = Math.max(
       0,
-      Math.min(currentPosition, this.trackDuration)
+      Math.min(currentPosition, this.trackDuration),
     );
 
     // Calculate progress (0 to 1)
@@ -665,7 +665,7 @@ export class TimelineGenerator {
 
   // --- Public Cleanup Method ---
   public dispose(): void {
-    console.log("Disposing TimelineGenerator...");
+    console.log('Disposing TimelineGenerator...');
     // Stop animation loop
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
@@ -688,6 +688,6 @@ export class TimelineGenerator {
     this.container = null;
     // waveformData might be large, nullify if not needed elsewhere
     // this.waveformData = null;
-    console.log("TimelineGenerator disposed.");
+    console.log('TimelineGenerator disposed.');
   }
 }

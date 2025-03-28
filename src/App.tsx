@@ -1,16 +1,16 @@
-import { useEffect, useState, useRef } from "react";
-import "./App.styles.css";
-import { Explorer } from "@/components/Explorer/Explorer";
-import { DroppableArea } from "@/components/DroppableArea/DroppableArea";
-import { PlayPauseButton } from "@/components/PlayPauseButton/PlayPauseButton";
-import useMixer from "@/hooks/useMixer";
-import { MiniatureTimeline } from "@/components/MiniatureTimeline/MiniatureTimeline";
-import VerticalLoading from "@/components/VerticalLoading/VerticalLoading";
+import { useEffect, useState, useRef } from 'react';
+import './App.styles.css';
+import { Explorer } from '@/components/Explorer/Explorer';
+import { DroppableArea } from '@/components/DroppableArea/DroppableArea';
+import { PlayPauseButton } from '@/components/PlayPauseButton/PlayPauseButton';
+import useMixer from '@/hooks/useMixer';
+import { MiniatureTimeline } from '@/components/MiniatureTimeline/MiniatureTimeline';
+import VerticalLoading from '@/components/VerticalLoading/VerticalLoading';
 
 const App = () => {
   const mixer = useMixer();
   const [isLoading, setIsLoading] = useState(false);
-  const [currentUrl, setCurrentUrl] = useState<string>("");
+  const [currentUrl, setCurrentUrl] = useState<string>('');
 
   console.log(currentUrl);
   const webGLRef = useRef(null);
@@ -23,66 +23,66 @@ const App = () => {
     closeSide: 0,
     closeSideRight: 0,
   });
-  const currentCameraMode = useRef("side");
+  const currentCameraMode = useRef('side');
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = e => {
       e.preventDefault();
 
-      if (e.key === "ArrowUp") {
+      if (e.key === 'ArrowUp') {
         if (cameraRef.current) {
-          switchCameraValue("isometric");
+          switchCameraValue('isometric');
         }
       }
 
-      if (e.key === "ArrowLeft") {
+      if (e.key === 'ArrowLeft') {
         if (cameraRef.current) {
-          switchCameraValue("closeSide");
+          switchCameraValue('closeSide');
         }
       }
 
-      if (e.key === "ArrowRight") {
+      if (e.key === 'ArrowRight') {
         if (cameraRef.current) {
-          switchCameraValue("closeSideRight");
+          switchCameraValue('closeSideRight');
         }
       }
 
-      if (e.key === "p") {
-        if (mixer.getIsPlaying("deck1") === true) {
-          mixer.pause("deck1")();
+      if (e.key === 'p') {
+        if (mixer.getIsPlaying('deck1') === true) {
+          mixer.pause('deck1')();
         } else {
-          mixer.play("deck1")();
+          mixer.play('deck1')();
         }
       }
 
-      if (e.key === "ArrowDown") {
+      if (e.key === 'ArrowDown') {
         e.preventDefault();
 
         if (cameraRef.current) {
-          switchCameraValue("side");
+          switchCameraValue('side');
         }
       }
     };
 
     const handleMouseEnter = () => {
-      window.addEventListener("keydown", handleKeyDown);
+      window.addEventListener('keydown', handleKeyDown);
     };
 
     const handleMouseLeave = () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown);
     };
 
     const webGLNode = webGLRef.current;
 
     if (webGLNode) {
-      webGLNode.addEventListener("mouseenter", handleMouseEnter);
-      webGLNode.addEventListener("mouseleave", handleMouseLeave);
+      webGLNode.addEventListener('mouseenter', handleMouseEnter);
+      webGLNode.addEventListener('mouseleave', handleMouseLeave);
     }
 
     return () => {
       if (webGLNode) {
-        webGLNode.removeEventListener("mouseenter", handleMouseEnter);
-        webGLNode.removeEventListener("mouseleave", handleMouseLeave);
+        webGLNode.removeEventListener('mouseenter', handleMouseEnter);
+        webGLNode.removeEventListener('mouseleave', handleMouseLeave);
       }
     };
   }, [mixer]);
@@ -96,14 +96,14 @@ const App = () => {
 
       await mixer.loadAudio(id, { refs })(`http://localhost:3000/${fileName}`);
 
-      setCurrentUrl(fileName.replace(/\.[^/.]+$/, ""));
+      setCurrentUrl(fileName.replace(/\.[^/.]+$/, ''));
       setIsLoading(false);
     } catch (error) {
-      console.error("Error loading audio:", error);
+      console.error('Error loading audio:', error);
     }
   };
 
-  const switchCameraValue = (mode) => {
+  const switchCameraValue = mode => {
     if (currentCameraMode.current === mode) {
       if (cameraPositionsRef.current[mode] >= 3) {
         cameraPositionsRef.current[mode] = 0;
@@ -135,7 +135,7 @@ const App = () => {
         </VerticalLoading>
       </DroppableArea>
 
-      {mixer.getDeckInstance("deck1") && (
+      {mixer.getDeckInstance('deck1') && (
         <div className="App__bottom-bar">
           <img
             className="App__track-cover"
@@ -144,8 +144,8 @@ const App = () => {
           />
           <MiniatureTimeline url={currentUrl} mixer={mixer} deckId="deck1" />
           <PlayPauseButton
-            play={mixer.getDeckInstance("deck1").play}
-            pause={mixer.getDeckInstance("deck1").pause}
+            play={mixer.getDeckInstance('deck1').play}
+            pause={mixer.getDeckInstance('deck1').pause}
             size="sm"
           />
         </div>

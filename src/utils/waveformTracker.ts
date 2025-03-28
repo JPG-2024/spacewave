@@ -1,4 +1,4 @@
-import { detectBeat } from "@/utils/beatTracker";
+import { detectBeat } from '@/utils/beatTracker';
 
 export async function generateWaveformData({
   audioBuffer,
@@ -11,17 +11,17 @@ export async function generateWaveformData({
       const pointsArray = audioBuffer.getChannelData(0);
 
       const totalPixelsWidth = Math.ceil(
-        audioBuffer.duration * pixelsPerSecond
+        audioBuffer.duration * pixelsPerSecond,
       ); // Total pixels (unit: pixels)
       const pixelLength = Math.round(pointsArray.length / totalPixelsWidth); // Samples per pixel (unit: samples)
       const samplesPerBeat = Math.ceil(
-        audioBuffer.sampleRate * tempoData.beatInterval
+        audioBuffer.sampleRate * tempoData.beatInterval,
       ); // Samples per beat (unit: samples)
       const sampleSize = Math.min(
         samplesPerBeat,
         Math.ceil(
-          (audioBuffer.duration * audioBuffer.sampleRate) / totalPixelsWidth
-        )
+          (audioBuffer.duration * audioBuffer.sampleRate) / totalPixelsWidth,
+        ),
       ); // Sample size (unit: samples)
       const points = []; // Array to store waveform data points
       const maxSampleSize = 1000; // Maximum sample size (unit: samples)
@@ -62,10 +62,10 @@ export function generateWaveformSVG(
   {
     width = 200,
     height = 30,
-    color = "#ea31ff",
+    color = '#ea31ff',
     normalize = true,
     amplification = 1, // Factor de amplificación para las ondas
-  } = {}
+  } = {},
 ) {
   // Extraer solo los valores positivos (índices pares)
   const positiveData = [];
@@ -77,7 +77,7 @@ export function generateWaveformSVG(
   let displayData = positiveData;
   if (normalize) {
     const maxValue = Math.max(...positiveData, 0.001); // Evitar división por cero
-    displayData = positiveData.map((value) => value / maxValue);
+    displayData = positiveData.map(value => value / maxValue);
   }
 
   // Calcular relación de muestras por píxel
@@ -85,7 +85,7 @@ export function generateWaveformSVG(
   const svgWidth = Math.min(width, displayData.length);
 
   // Crear path data optimizado
-  let pathData = "";
+  let pathData = '';
   for (let i = 0; i < svgWidth; i++) {
     // Promediar muestras para este píxel
     const start = Math.floor(i * samplesPerPixel);

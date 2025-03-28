@@ -34,7 +34,7 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
     source.buffer = audioBuffer;
 
     const lowPassFilter = offlineContext.createBiquadFilter();
-    lowPassFilter.type = "lowpass";
+    lowPassFilter.type = 'lowpass';
     lowPassFilter.frequency.value = 150;
 
     source.connect(lowPassFilter);
@@ -43,7 +43,7 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
     source.start(0);
     offlineContext
       .startRendering()
-      .then((renderedBuffer) => {
+      .then(renderedBuffer => {
         const channelData = renderedBuffer.getChannelData(0);
 
         function getPeaksAtThreshold(data, threshold) {
@@ -65,7 +65,7 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
         const peaks = getPeaksAtThreshold(channelData, threshold);
 
         if (peaks.length === 0) {
-          return reject(new Error("No se detectaron picos en el audio."));
+          return reject(new Error('No se detectaron picos en el audio.'));
         }
 
         // 1. Detectar secciones sin beats (armonía)
@@ -111,7 +111,7 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
 
         // Filtrar secciones muy cortas (menos de 0.5 segundos)
         const significantHarmonySections = harmonySections.filter(
-          (section) => section.duration >= 0.5
+          section => section.duration >= 0.5,
         );
 
         // Calculamos los intervalos entre picos. Se analiza, por cada pico, los siguientes 10 para obtener una mejor estadística.
@@ -152,9 +152,7 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
           theoreticalTempo = Math.round(theoreticalTempo);
 
           // Sumamos el recuento en el histograma.
-          let existing = tempoCounts.find(
-            (tc) => tc.tempo === theoreticalTempo
-          );
+          let existing = tempoCounts.find(tc => tc.tempo === theoreticalTempo);
           if (existing) {
             existing.count += count;
           } else {
@@ -166,7 +164,7 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
         const detectedTempo = tempoCounts.length ? tempoCounts[0].tempo : null;
 
         if (!detectedTempo) {
-          return reject(new Error("No se pudo determinar el tempo."));
+          return reject(new Error('No se pudo determinar el tempo.'));
         }
 
         const beatInterval = 60 / detectedTempo;
@@ -178,10 +176,10 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
           firstBeatOffset: offset,
           beatInterval: beatInterval,
           harmonySections: significantHarmonySections, // Secciones sin beats
-          beats: peaks.map((peak) => peak / sampleRate), // Todos los beats detectados
+          beats: peaks.map(peak => peak / sampleRate), // Todos los beats detectados
         });
       })
-      .catch((err) => {
+      .catch(err => {
         reject(err);
       });
   });

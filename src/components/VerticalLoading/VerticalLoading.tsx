@@ -1,5 +1,5 @@
-import React from "react";
-import "./VerticalLoading.styles.css"; // We'll create this CSS file next
+import React from 'react';
+import './VerticalLoading.styles.css'; // We'll create this CSS file next
 
 interface VerticalLoadingLineProps {
   isLoading: boolean;
@@ -15,13 +15,13 @@ interface VerticalLoadingLineProps {
 
 const VerticalLoadingLine: React.FC<VerticalLoadingLineProps> = ({
   isLoading,
-  width = "100%",
-  height = "20px",
+  width = '100%',
+  height = '20px',
   children,
-  lineColor = "#4285f4",
-  backgroundColor = "transparent",
-  animationDuration = "0.5s",
-  lineWidth = "2px",
+  lineColor = '#4285f4',
+  backgroundColor = 'transparent',
+  animationDuration = '0.5s',
+  lineWidth = '2px',
   conditionalRender = true,
 }) => {
   const VerticalLine = () => (
@@ -31,7 +31,7 @@ const VerticalLoadingLine: React.FC<VerticalLoadingLineProps> = ({
         width,
         height,
         backgroundColor,
-        position: "relative",
+        position: 'relative',
       }}
     >
       <div
@@ -55,7 +55,7 @@ const VerticalLoadingLine: React.FC<VerticalLoadingLineProps> = ({
 
   if (!conditionalRender) {
     return (
-      <div style={{ position: "relative", width, height }}>
+      <div style={{ position: 'relative', width, height }}>
         <>
           {isLoading && <VerticalLine />}
           {children}

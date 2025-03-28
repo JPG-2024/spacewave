@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
-import "./styles.css";
-import { DeckInstance } from "../../hooks/useMixer2";
+import React, { useState, useEffect, useRef } from 'react';
+import './styles.css';
+import { DeckInstance } from '../../hooks/useMixer2';
 
 interface TempoKnobProps {
   deck: DeckInstance;
@@ -12,8 +12,8 @@ const TempoKnob: React.FC<TempoKnobProps> = ({ deck }) => {
   const [temporaryTempo, setTemporaryTempo] = useState(deck.bpm || 100);
   const needPauseRef = useRef(false);
 
-  const handleMouseDown = (e) => {
-    console.log("handleMouseDown");
+  const handleMouseDown = e => {
+    console.log('handleMouseDown');
     if (deck.getIsPlaying()) {
       needPauseRef.current = true;
       deck.pause();
@@ -23,20 +23,20 @@ const TempoKnob: React.FC<TempoKnobProps> = ({ deck }) => {
     setStartY(e.clientY);
   };
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = e => {
     if (!isDragging) return;
 
     const deltaY = startY - e.clientY;
     const newTempo = Math.max(
       40,
-      Math.min(200, temporaryTempo + deltaY * 0.0001)
+      Math.min(200, temporaryTempo + deltaY * 0.0001),
     );
 
     setTemporaryTempo(newTempo);
   };
 
   const handleMouseUp = async () => {
-    console.log("handleMouseUPP");
+    console.log('handleMouseUPP');
     if (isDragging) {
       await deck.changeTempo(temporaryTempo);
     }
@@ -54,12 +54,12 @@ const TempoKnob: React.FC<TempoKnobProps> = ({ deck }) => {
 
   useEffect(() => {
     if (isDragging) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
     }
     return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging, startY, temporaryTempo]);
 
@@ -68,7 +68,7 @@ const TempoKnob: React.FC<TempoKnobProps> = ({ deck }) => {
       <div
         className="tempo-knob"
         onMouseDown={handleMouseDown}
-        style={{ cursor: isDragging ? "ns-resize" : "pointer" }}
+        style={{ cursor: isDragging ? 'ns-resize' : 'pointer' }}
       >
         {temporaryTempo.toFixed(2)}
       </div>

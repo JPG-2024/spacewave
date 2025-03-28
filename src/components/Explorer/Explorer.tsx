@@ -1,28 +1,28 @@
-import React, { useState } from "react";
-import "./Explorer.styles.css";
+import React, { useState } from 'react';
+import './Explorer.styles.css';
 //import { MiniatureTimeline } from "../MiniatureTimeline/MiniatureTimeline";
-import VerticalLoadingLine from "@/components/VerticalLoading/VerticalLoading";
-import { useFetch } from "@/hooks/useFetch";
+import VerticalLoadingLine from '@/components/VerticalLoading/VerticalLoading';
+import { useFetch } from '@/hooks/useFetch';
 
 const fetchFiles = () => {
-  return fetch("http://localhost:3000/files")
-    .then((response) => response.json())
-    .then((data) => {
+  return fetch('http://localhost:3000/files')
+    .then(response => response.json())
+    .then(data => {
       return data;
     });
 };
 
-const downloadFile = async (yt_link) => {
+const downloadFile = async yt_link => {
   try {
-    const response = await fetch("http://localhost:3000/download", {
-      method: "POST",
+    const response = await fetch('http://localhost:3000/download', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({ yt_link }),
     });
   } catch (error) {
-    console.error("Error in downloadFile:", error);
+    console.error('Error in downloadFile:', error);
     throw error;
   }
 };
@@ -31,12 +31,12 @@ const DraggableItem = ({ text, children }) => {
   const [dragging, setDragging] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
 
-  const handleDragStart = (event) => {
-    event.dataTransfer.setData("text/plain", text);
+  const handleDragStart = event => {
+    event.dataTransfer.setData('text/plain', text);
     setDragging(true);
   };
 
-  const handleDrag = (event) => {
+  const handleDrag = event => {
     if (event.clientX !== 0 && event.clientY !== 0) {
       setPosition({ x: event.clientX, y: event.clientY });
     }
@@ -91,44 +91,44 @@ const FileItem = ({ file, handleDeleteFile }) => {
 
 export const Explorer = () => {
   const [visible, setIsVisible] = useState(false);
-  const [urlValue, setUrlValue] = useState("");
-  const { isloading, data, refetch } = useFetch(fetchFiles, "");
+  const [urlValue, setUrlValue] = useState('');
+  const { isloading, data, refetch } = useFetch(fetchFiles, '');
   const [downloading, setDownloading] = useState(false);
 
-  const handleDownload = async (e) => {
-    if (e.key === "Enter") {
+  const handleDownload = async e => {
+    if (e.key === 'Enter') {
       try {
         setDownloading(true);
         await downloadFile(urlValue);
-        setUrlValue("");
+        setUrlValue('');
         setDownloading(false);
         await refetch();
       } catch (error) {
-        console.error("Error downloading file:", error);
+        console.error('Error downloading file:', error);
       }
     }
   };
 
-  const handleDeleteFile = (fileName) => (e) => {
+  const handleDeleteFile = fileName => e => {
     e.preventDefault();
     fetch(`http://localhost:3000/delete`, {
-      method: "DELETE",
+      method: 'DELETE',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({ fileName }),
     })
-      .then((response) => {
+      .then(response => {
         if (!response.ok) {
-          throw new Error("Failed to delete file");
+          throw new Error('Failed to delete file');
         }
       })
       .then(() => {
         console.log(`File ${fileName} deleted successfully`);
         refetch();
       })
-      .catch((error) => {
-        console.error("Error deleting file:", error);
+      .catch(error => {
+        console.error('Error deleting file:', error);
       });
   };
 
@@ -138,7 +138,7 @@ export const Explorer = () => {
         Files
       </div>
       <div
-        className={`explorer ${visible ? "explorer--visible" : ""}`}
+        className={`explorer ${visible ? 'explorer--visible' : ''}`}
         onMouseLeave={() => setIsVisible(false)}
       >
         <div className="explorer__input-container">
@@ -152,7 +152,7 @@ export const Explorer = () => {
               className="explorer__input-download"
               type="text"
               value={urlValue}
-              onChange={(e) => setUrlValue(e.target.value)}
+              onChange={e => setUrlValue(e.target.value)}
               onKeyDown={handleDownload}
               placeholder="Enter YouTube URL and press Enter"
             />
@@ -161,12 +161,12 @@ export const Explorer = () => {
 
         <div
           className={`explorer__files ${
-            visible ? "explorer__files--visible" : ""
+            visible ? 'explorer__files--visible' : ''
           }`}
         >
           <VerticalLoadingLine isLoading={isloading} width="100%" height="100%">
             <>
-              {data?.map((file) => (
+              {data?.map(file => (
                 <FileItem
                   key={file.mp3}
                   file={file}

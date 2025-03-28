@@ -1,12 +1,12 @@
-import { useRef, useCallback, MutableRefObject } from "react";
+import { useRef, useCallback, MutableRefObject } from 'react';
 // Import the new class and potentially its result/control types
 import {
   TimelineGenerator,
   // TimelineGeneratorResult, // Not directly used here, but controls are
   PlaybackControls,
   CameraControls,
-} from "@/utils/generateTimeline";
-import * as THREE from "three"; // Import THREE if timeline ref holds Object3D
+} from '@/utils/generateTimeline';
+import * as THREE from 'three'; // Import THREE if timeline ref holds Object3D
 
 export interface Deck {
   audioContext: AudioContext;
@@ -21,7 +21,7 @@ export interface Deck {
   tempo: number | null;
   timelineControls: PlaybackControls | null; // Use specific type
   trackPositionPercentage: number;
-  deckState: "free" | "loading" | "mounted";
+  deckState: 'free' | 'loading' | 'mounted';
   bpmOffset?: number;
   bpm: number | null;
   initialBpm?: number | null;
@@ -38,11 +38,11 @@ export interface DeckInstance extends Deck {
   pause: () => void;
   changeTempo: (newTempo: number) => Promise<void>;
   getTempo: () => number | null;
-  getDeckState: () => "free" | "loading" | "mounted" | undefined; // Allow undefined
+  getDeckState: () => 'free' | 'loading' | 'mounted' | undefined; // Allow undefined
   getIsPlaying: () => boolean;
   seek: (offset: number) => number | undefined;
   autoSyncTempo: () => Promise<void>; // Changed return type
-  adjustBeat: (direction: "forward" | "backward") => void;
+  adjustBeat: (direction: 'forward' | 'backward') => void;
   scaleWaveform: (scale: number) => void;
 }
 
@@ -73,7 +73,7 @@ export default function useMixer() {
       bpm: null,
       timelineControls: null, // Reset controls
       tempo: null,
-      deckState: "free",
+      deckState: 'free',
       initialBpm: null,
       bpmOffset: 0,
     });
@@ -95,7 +95,7 @@ export default function useMixer() {
       tempo: null,
       timelineControls: null,
       trackPositionPercentage: 0,
-      deckState: "free",
+      deckState: 'free',
       bpm: null,
       bpmOffset: 0,
       initialBpm: null,
@@ -113,9 +113,9 @@ export default function useMixer() {
 
   const loadAudio = useCallback(
     (
-        deckId: string,
-        { refs }: { refs: LoadAudioRefs } // Add type for refs
-      ) =>
+      deckId: string,
+      { refs }: { refs: LoadAudioRefs }, // Add type for refs
+    ) =>
       async (url: string) => {
         try {
           // Ensure deck is initialized if it doesn't exist
@@ -124,7 +124,7 @@ export default function useMixer() {
           }
           const deck = mixerState.current.decks[deckId];
 
-          deck.deckState = "loading";
+          deck.deckState = 'loading';
 
           if (deck.isPlaying) {
             pause(deckId)();
@@ -132,7 +132,7 @@ export default function useMixer() {
 
           // Dispose previous timeline generator if it exists
           if (mixerState.current.timelineGenerator) {
-            console.log("Disposing previous timeline generator...");
+            console.log('Disposing previous timeline generator...');
             mixerState.current.timelineGenerator.dispose();
             mixerState.current.timelineGenerator = null;
           }
@@ -144,14 +144,14 @@ export default function useMixer() {
 
           console.log(
             `Audio decoded for ${deckId}, duration: ${deck.duration.toFixed(
-              2
-            )}s`
+              2,
+            )}s`,
           );
 
           // --- Use the new TimelineGenerator class ---
           const timelineGenerator = new TimelineGenerator({
             audioContext: deck.audioContext,
-            containerId: "deck1webfl", // Make sure this ID exists in your DOM
+            containerId: 'deck1webfl', // Make sure this ID exists in your DOM
             audioBuffer: deck.buffer,
           });
           const { camera, timeLine, playbackControls, tempo } =
@@ -162,13 +162,13 @@ export default function useMixer() {
           deck.timelineControls = playbackControls;
           deck.tempo = tempo; // Store tempo if needed
           mixerState.current.timelineGenerator = timelineGenerator; // Store the instance
-          deck.deckState = "mounted";
+          deck.deckState = 'mounted';
         } catch (error) {
-          console.error("Error loading audio:", error);
+          console.error('Error loading audio:', error);
           return false;
         }
       },
-    []
+    [],
   );
 
   const play = useCallback(
@@ -189,7 +189,7 @@ export default function useMixer() {
 
           deck.source.playbackRate.value = deck.playbackRate;
 
-          if (deck.audioContext.state === "suspended") {
+          if (deck.audioContext.state === 'suspended') {
             deck.audioContext.resume();
           }
           deck.source.start(0, deck.pausedAt);
@@ -200,13 +200,13 @@ export default function useMixer() {
 
           deck.isPlaying = true;
 
-          console.log("Playing audio...", deck);
+          console.log('Playing audio...', deck);
         }
       } catch (error) {
-        console.error("Error playing audio:", error);
+        console.error('Error playing audio:', error);
       }
     },
-    []
+    [],
   );
 
   const pause = useCallback(
@@ -247,10 +247,10 @@ export default function useMixer() {
           // Add optional chaining for timelineControls
           deck.timelineControls?.pause(deck.pausedAt);
         } catch (error) {
-          console.error("Error pausing audio:", error);
+          console.error('Error pausing audio:', error);
         }
       },
-    []
+    [],
   );
 
   // offset es un valor entre 0 y 1 representando el porcentaje del track
@@ -276,10 +276,10 @@ export default function useMixer() {
 
         return seekTime;
       } catch (error) {
-        console.error("Error adjusting track position:", error);
+        console.error('Error adjusting track position:', error);
       }
     },
-    []
+    [],
   );
 
   const getTempo = useCallback((deckId: string): number | null => {
@@ -289,11 +289,11 @@ export default function useMixer() {
   }, []);
 
   const getDeckState = useCallback(
-    (deckId: string): Deck["deckState"] | undefined => {
+    (deckId: string): Deck['deckState'] | undefined => {
       // Added type
       return mixerState.current.decks[deckId]?.deckState;
     },
-    []
+    [],
   );
 
   const getIsPlaying = useCallback((deckId: string): boolean => {
@@ -303,22 +303,22 @@ export default function useMixer() {
 
   const autoSyncTempo = useCallback(async (deckId: string): Promise<void> => {
     // Added type, changed return type
-    const deck1 = mixerState.current.decks["deck1"];
-    const deck2 = mixerState.current.decks["deck2"];
+    const deck1 = mixerState.current.decks['deck1'];
+    const deck2 = mixerState.current.decks['deck2'];
     if (!deck1?.bpm && !deck2?.bpm) {
       // Guard if no tempos available
-      console.warn("Cannot autoSyncTempo: No source tempo available.");
+      console.warn('Cannot autoSyncTempo: No source tempo available.');
       return;
     }
 
-    const newTempo = deckId === "deck1" ? deck2?.bpm : deck1?.bpm;
+    const newTempo = deckId === 'deck1' ? deck2?.bpm : deck1?.bpm;
     if (newTempo === null || newTempo === undefined) {
-      console.warn("Cannot autoSyncTempo: Target tempo is null.");
+      console.warn('Cannot autoSyncTempo: Target tempo is null.');
       return;
     }
 
     console.warn(
-      "AutoSyncTempo calls changeTempo which might not update visualization."
+      'AutoSyncTempo calls changeTempo which might not update visualization.',
     );
     await changeTempo(deckId, newTempo);
 
@@ -340,30 +340,30 @@ export default function useMixer() {
     // If you need visual changes (e.g., stretching waveform), that logic
     // would need to be added to TimelineGenerator or handled here.
     // The generateTimelineGraph call seemed incorrect/incomplete.
-    console.warn("changeTempo only adjusts playbackRate, not visualization.");
+    console.warn('changeTempo only adjusts playbackRate, not visualization.');
     // Consider updating the source node's playbackRate if playing
   }, []);
 
   const adjustBeat = useCallback(
-    (deckId: string, direction: "forward" | "backward" = "forward") => {
+    (deckId: string, direction: 'forward' | 'backward' = 'forward') => {
       const deck = mixerState.current.decks[deckId];
       if (!deck?.source || !deck.audioContext) return; // Added audioContext check
 
       const now = deck.audioContext.currentTime;
-      const speedMultiplier = direction === "forward" ? 1.5 : 0.5;
-      const offsetDirection = direction === "forward" ? 0.5 : -0.5;
+      const speedMultiplier = direction === 'forward' ? 1.5 : 0.5;
+      const offsetDirection = direction === 'forward' ? 0.5 : -0.5;
 
       deck.source.playbackRate.setValueAtTime(1.0, now);
       deck.source.playbackRate.linearRampToValueAtTime(
         speedMultiplier,
-        now + 0.01
+        now + 0.01,
       );
       deck.source.playbackRate.linearRampToValueAtTime(1.0, now + 0.02);
 
       // Use timeline controls to apply visual offset - Added optional chaining
       deck.timelineControls?.setOffset(offsetDirection);
     },
-    []
+    [],
   );
 
   const adjustPosition = useCallback((deckId: string, offset: number) => {
@@ -378,7 +378,7 @@ export default function useMixer() {
   const scaleWaveform = useCallback((deckId: string, scale: number) => {
     const deck = mixerState.current.decks[deckId]; // Corrected typo: decks -> mixerState
     // Scaling logic needs to be implemented within TimelineGenerator or here
-    console.warn("scaleWaveform is not implemented in TimelineGenerator yet.");
+    console.warn('scaleWaveform is not implemented in TimelineGenerator yet.');
     // deck.timelineControls.scaleWaveform(scale); // Original call, might error if method doesn't exist
   }, []);
 
@@ -397,7 +397,7 @@ export default function useMixer() {
         seek: (offset: number) => seek(deckId, offset),
         scaleWaveform: (scale: number) => scaleWaveform(deckId, scale),
         autoSyncTempo: () => autoSyncTempo(deckId), // Returns Promise<void> now
-        adjustBeat: (direction: "forward" | "backward") =>
+        adjustBeat: (direction: 'forward' | 'backward') =>
           adjustBeat(deckId, direction),
       };
     },
@@ -413,7 +413,7 @@ export default function useMixer() {
       scaleWaveform,
       autoSyncTempo,
       adjustBeat,
-    ] // Added missing dependencies
+    ], // Added missing dependencies
   );
 
   return {
