@@ -59,6 +59,7 @@ export class TimelineGenerator {
   private renderer: THREE.WebGLRenderer | null = null;
   private animationFrameId: number | null = null;
   private timelineGroup: THREE.Object3D | null = null; // Group for waveform and beats
+  private starFieldGroup: THREE.Group | null = null; // Group for the star field
   private centerMarker: THREE.Mesh | null = null; // Separate marker
   private container: HTMLElement | null = null;
 
@@ -85,8 +86,8 @@ export class TimelineGenerator {
     ],
     side: [
       [0, 0, 4],
-      [0, 0, 20],
-      [0, 0, 60],
+      [0, 0, 10],
+      [0, 0, 40],
       [0, 0, 90],
     ],
     closeSide: [
@@ -138,11 +139,15 @@ export class TimelineGenerator {
     this.timelineGroup.name = 'TimelineGroup'; // For debugging
     this.createWaveformVisualization(); // Adds waveform and beats to timelineGroup
     this.createCenterMarker(); // Adds marker directly to the scene
+    this.starFieldGroup = this.createStarField(); // Create the star field
 
     // Position the timeline group relative to the center marker
-    this.timelineGroup.position.x = window.innerWidth / 2; // Initial position for 0 progress
+    const initialX = window.innerWidth / 2;
+    this.timelineGroup.position.x = initialX; // Initial position for 0 progress
+    this.starFieldGroup.position.x = initialX; // Star field starts at the same position
 
     this.scene!.add(this.timelineGroup); // Add the group to the scene
+    this.scene!.add(this.starFieldGroup); // Add the star field to the scene
 
     // Add event listeners and start animation loop
     this.addEventListeners();
@@ -200,6 +205,22 @@ export class TimelineGenerator {
         }
       });
       this.timelineGroup = null; // Allow garbage collection
+    }
+
+    // Remove star field group and dispose its contents
+    if (this.starFieldGroup) {
+      this.scene.remove(this.starFieldGroup);
+      this.starFieldGroup.traverse((object: THREE.Object3D) => {
+        if (object instanceof THREE.Points) {
+          object.geometry?.dispose();
+          if (Array.isArray(object.material)) {
+            object.material.forEach((mat: THREE.Material) => mat.dispose());
+          } else {
+            object.material?.dispose();
+          }
+        }
+      });
+      this.starFieldGroup = null;
     }
 
     // Optional: Clear any other scene-specific objects here
@@ -353,7 +374,7 @@ export class TimelineGenerator {
         depthTest: false, // Render markers on top of waveform
       });
       // Use a thin box for beat markers for visibility
-      const beatMarkGeometry = new THREE.BoxGeometry(0.015, scaleY * 1.8, 0.01); // Slightly taller than waveform
+      const beatMarkGeometry = new THREE.BoxGeometry(0.01, scaleY * 1.1, 0.5); // Slightly taller than waveform
 
       for (
         let beatTime = firstBeatOffset;
@@ -377,23 +398,110 @@ export class TimelineGenerator {
 
   private createCenterMarker(): void {
     if (!this.scene) return;
-    // Simple vertical line marker
-    const markerHeight = 2.5; // Make it taller than waveform
-    const markerGeometry = new THREE.BoxGeometry(0.02, markerHeight, 0.02); // Thin but visible
+
+    // Define dimensions
+    const outerSize = 1.0; // Tamaño exterior del marco cuadrado
+    const innerSize = 0.9; // Tamaño del agujero interior
+    const thickness = 0.05; // Grosor del marco
+
+    // Crear la forma exterior (cuadrado)
+    const shape = new THREE.Shape();
+    shape.moveTo(-outerSize / 2, -outerSize / 2);
+    shape.lineTo(outerSize / 2, -outerSize / 2);
+    shape.lineTo(outerSize / 2, outerSize / 2);
+    shape.lineTo(-outerSize / 2, outerSize / 2);
+    shape.lineTo(-outerSize / 2, -outerSize / 2);
+
+    // Crear el agujero (cuadrado interior)
+    const hole = new THREE.Path();
+    hole.moveTo(-innerSize / 2, -innerSize / 2);
+    hole.lineTo(innerSize / 2, -innerSize / 2);
+    hole.lineTo(innerSize / 2, innerSize / 2);
+    hole.lineTo(-innerSize / 2, innerSize / 2);
+    hole.lineTo(-innerSize / 2, -innerSize / 2);
+    shape.holes.push(hole);
+
+    // Extruir la forma
+    const extrudeSettings = {
+      depth: thickness,
+      bevelEnabled: false,
+    };
+
+    const markerGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    markerGeometry.rotateX(Math.PI / 2); // Rotar para que quede horizontal
+    markerGeometry.rotateZ(Math.PI / 2); // Rotar para que quede horizontal
+    markerGeometry.translate(-thickness / 2, 0, 0); // Mover hacia abajo
+    markerGeometry.scale(1.2, 2.5, 1); // Escalar para que quepa en el centro
+
     const markerMaterial = new THREE.MeshStandardMaterial({
       color: CENTER_MARKER_COLOR,
       emissive: CENTER_MARKER_EMISSIVE_COLOR,
-      emissiveIntensity: 0.8, // Subtle glow
-      depthTest: false, // Ensure it's always visible
-      transparent: true,
-      opacity: 0.9,
+      emissiveIntensity: 200,
+      depthTest: false,
+      side: THREE.DoubleSide, // Importante para que se vea bien desde ambos lados
     });
 
     this.centerMarker = new THREE.Mesh(markerGeometry, markerMaterial);
     this.centerMarker.name = 'CenterMarker';
-    // Position at the center of the viewport, slightly in front of the timeline group
-    this.centerMarker.position.set(0, 0, 0.1);
+    //this.centerMarker.position.set(0, 0, 0.1);
     this.scene.add(this.centerMarker);
+  }
+
+  private createStarField(): THREE.Group {
+    const starGroup = new THREE.Group();
+    starGroup.name = 'StarField';
+
+    const starCount = 20000;
+    const starGeometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(starCount * 3);
+    const colors = new Float32Array(starCount * 3); // Optional: for varied star colors
+
+    const waveformWidth = window.innerWidth; // Use the same width reference
+    const spreadZ = 120;
+    const spread = {
+      x: waveformWidth * 1.5,
+      y: window.innerHeight * 0.5,
+      z: spreadZ,
+    }; // Adjust spread as needed
+
+    for (let i = 0; i < starCount; i++) {
+      const i3 = i * 3;
+      // Position stars relative to the center (0,0,0) of the group
+      positions[i3] = (Math.random() - 0.5) * spread.x;
+      positions[i3 + 1] = (Math.random() - 0.5) * spread.y;
+      positions[i3 + 2] = (Math.random() - 0.5) * spread.z - spread.z / 2; // Push stars back slightly
+
+      // Optional: Randomize star brightness/color slightly
+      const brightness = Math.random() * 0.5 + 0.5; // 0.5 to 1.0
+      colors[i3] = brightness;
+      colors[i3 + 1] = brightness;
+      colors[i3 + 2] = brightness;
+    }
+
+    starGeometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(positions, 3),
+    );
+    starGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3)); // Use vertex colors
+
+    const starMaterial = new THREE.PointsMaterial({
+      size: 0.02, // Adjust size
+      sizeAttenuation: true, // Stars shrink with distance
+      vertexColors: true, // Use the 'color' attribute
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false, // Avoid stars obscuring each other unnaturally
+    });
+
+    const stars = new THREE.Points(starGeometry, starMaterial);
+    stars.translateX(window.innerWidth / 3.8); // Move the group to the center
+    stars.translateZ(spreadZ / 2); // Move the group to the center
+    starGroup.add(stars);
+
+    // Position the group itself if needed, but movement is handled in updateTimelinePosition
+    // starGroup.position.z = -5; // Example: Move the whole field back
+
+    return starGroup;
   }
 
   // --- Playback Control Logic ---
@@ -630,6 +738,11 @@ export class TimelineGenerator {
     const targetX = waveformWidth / 2 - progress * waveformWidth;
 
     this.timelineGroup.position.x = targetX;
+
+    // Move the star field along with the timeline
+    if (this.starFieldGroup) {
+      this.starFieldGroup.position.x = targetX;
+    }
   }
 
   private resizeRendererToDisplaySize(renderer: THREE.WebGLRenderer): boolean {
@@ -684,7 +797,7 @@ export class TimelineGenerator {
     // Nullify references to help garbage collection
     this.scene = null;
     this.camera = null;
-    // timelineGroup and centerMarker are handled in cleanupScene
+    // timelineGroup, centerMarker, and starFieldGroup are handled in cleanupScene
     this.container = null;
     // waveformData might be large, nullify if not needed elsewhere
     // this.waveformData = null;

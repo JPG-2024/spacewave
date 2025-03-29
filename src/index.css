@@ -22,7 +22,9 @@ body {
   min-width: 320px;
   min-height: 100vh;
   width: 100%;
-  background: radial-gradient(circle at top left, #310a14, #151215);
+  /* background: radial-gradient(circle at top left, #310a14, #151215); */
+  background: radial-gradient(circle at top left, #02002b, #151215);
+  /* background-color: black; */
   font-size: 12px;
 }
 
