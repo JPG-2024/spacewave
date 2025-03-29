@@ -1,19 +1,19 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import './App.styles.css';
 import { Explorer } from '@/components/Explorer/Explorer';
 import { DroppableArea } from '@/components/DroppableArea/DroppableArea';
 import { PlayPauseButton } from '@/components/PlayPauseButton/PlayPauseButton';
-import useMixer from '@/hooks/useMixer';
+import { MixerDeck } from '@/utils/MixerDeck';
 import { MiniatureTimeline } from '@/components/MiniatureTimeline/MiniatureTimeline';
 import VerticalLoading from '@/components/VerticalLoading/VerticalLoading';
 
 const App = () => {
-  const mixer = useMixer();
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentUrl, setCurrentUrl] = useState<string>('');
+  const deck1Ref = useRef<MixerDeck | null>(null);
 
-  console.log(currentUrl);
-  const webGLRef = useRef(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentFilename, setCurrentFilename] = useState<string>('');
+
+  const webGLRef = useRef<HTMLDivElement | null>(null);
   const timeline = useRef(null);
   const cameraRef = useRef(null);
 
@@ -26,49 +26,46 @@ const App = () => {
   const currentCameraMode = useRef('side');
 
   useEffect(() => {
-    const handleKeyDown = e => {
+    // Initialize MixerDeck instance
+    deck1Ref.current = new MixerDeck('deck1', 'deck1webfl');
+
+    const handleKeyDown = (e: KeyboardEvent) => {
       e.preventDefault();
 
       if (e.key === 'ArrowUp') {
-        if (cameraRef.current) {
-          switchCameraValue('isometric');
-        }
+        e.preventDefault();
+        switchCameraValue('isometric');
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        switchCameraValue('side');
       }
 
       if (e.key === 'ArrowLeft') {
-        if (cameraRef.current) {
-          switchCameraValue('closeSide');
-        }
+        e.preventDefault();
+        switchCameraValue('closeSide');
       }
 
       if (e.key === 'ArrowRight') {
-        if (cameraRef.current) {
-          switchCameraValue('closeSideRight');
-        }
+        e.preventDefault();
+        switchCameraValue('closeSideRight');
       }
 
       if (e.key === 'p') {
-        if (mixer.getIsPlaying('deck1') === true) {
-          mixer.pause('deck1')();
+        if (deck1Ref.current?.isPlayingState === true) {
+          deck1Ref.current?.pause();
         } else {
-          mixer.play('deck1')();
+          deck1Ref.current?.play();
         }
       }
 
       if (e.key === ' ') {
         e.preventDefault();
-        if (mixer.getIsPlaying('deck1') === true) {
-          mixer.pause('deck1')();
+        if (deck1Ref.current?.isPlayingState === true) {
+          deck1Ref.current?.pause();
         } else {
-          mixer.play('deck1')();
-        }
-      }
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-
-        if (cameraRef.current) {
-          switchCameraValue('side');
+          deck1Ref.current?.play();
         }
       }
     };
@@ -93,79 +90,128 @@ const App = () => {
         webGLNode.removeEventListener('mouseenter', handleMouseEnter);
         webGLNode.removeEventListener('mouseleave', handleMouseLeave);
       }
+      deck1Ref.current?.dispose();
     };
-  }, [mixer]);
+  }, []);
 
-  const handleLoadAudio = async (fileName: string, id: string) => {
-    try {
-      setIsLoading(true);
-      const refs = { cameraRef, timeline };
+  const handleLoadAudio = (droppedText: string, id?: string) => {
+    setIsLoading(true);
+    // Extract filename without extension from the dropped text (assuming format like 'path/to/filename.mp3')
+    const fileName =
+      droppedText
+        .split('/')
+        .pop()
+        ?.replace(/\.[^/.]+$/, '') || '';
 
-      await mixer.getDeckInstance(id)?.pause();
+    deck1Ref.current?.pause(); // Pause existing playback if any
 
-      await mixer.loadAudio(id, { refs })(`http://localhost:3000/${fileName}`);
-
-      setCurrentUrl(fileName.replace(/\.[^/.]+$/, ''));
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error loading audio:', error);
-    }
+    deck1Ref.current
+      ?.loadAudio(droppedText) // Load using the full dropped text
+      .then(success => {
+        if (success) {
+          setCurrentFilename(fileName); // Set the filename without extension on success
+        } else {
+          // Handle loading failure if needed (e.g., clear currentUrl)
+          setCurrentFilename('');
+        }
+      })
+      .catch(error => {
+        console.error('Error loading audio:', error);
+        setCurrentFilename(''); // Clear URL on error
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   };
 
-  const switchCameraValue = mode => {
+  const switchCameraValue = (mode: string) => {
     if (currentCameraMode.current === mode) {
-      if (cameraPositionsRef.current[mode] >= 3) {
-        cameraPositionsRef.current[mode] = 0;
+      if (
+        cameraPositionsRef.current[
+          mode as keyof typeof cameraPositionsRef.current
+        ] >= 3
+      ) {
+        cameraPositionsRef.current[
+          mode as keyof typeof cameraPositionsRef.current
+        ] = 0;
       } else {
-        cameraPositionsRef.current[mode] = cameraPositionsRef.current[mode] + 1;
+        cameraPositionsRef.current[
+          mode as keyof typeof cameraPositionsRef.current
+        ] =
+          cameraPositionsRef.current[
+            mode as keyof typeof cameraPositionsRef.current
+          ] + 1;
       }
     } else {
       currentCameraMode.current = mode;
     }
 
-    cameraRef.current.cameraMatrix(mode, cameraPositionsRef.current[mode]);
+    // Corrected camera matrix call
+    deck1Ref.current?.camera?.cameraMatrix(
+      mode as any, // Cast mode to any if CameraPositionMode type isn't directly available here
+      cameraPositionsRef.current[
+        mode as keyof typeof cameraPositionsRef.current
+      ],
+    );
   };
+
+  const handleSeek = useCallback(
+    (time: number) => deck1Ref.current.seek(time),
+    [],
+  );
+
+  const handleGetCurrentPositionPercentage = useCallback(
+    () => deck1Ref.current.currentPositionPercentage,
+    [],
+  );
+
+  const handleIsPlaying = useCallback(
+    () => deck1Ref.current?.isPlayingState,
+    [],
+  );
 
   return (
     <div className="app">
       <DroppableArea
         id="deck1"
-        isLoaded={true}
+        isLoaded={!!deck1Ref.current} // Reflect if deck is initialized
         notContentMessage="Drop a track here"
         onDropItem={handleLoadAudio}
       >
         <VerticalLoading
-          conditionalRender={false}
+          conditionalRender={false} // Keep VerticalLoading always rendered
           width="100%"
           height="100vh"
-          isLoading={isLoading}
+          isLoading={isLoading} // Show loading state
         >
+          {/* Canvas for WebGL visualization */}
           <div className="webGLCanvas" id="deck1webfl" ref={webGLRef}></div>
         </VerticalLoading>
       </DroppableArea>
 
-      {mixer.getDeckInstance('deck1') && (
+      {/* Conditionally render bottom bar only when a track is loaded (currentUrl is set) */}
+      {currentFilename && deck1Ref.current && (
         <div className="app__bottom-bar">
           <img
             className="app__track-cover"
-            src={`http://localhost:3000/${currentUrl}.webp`}
-            alt="disk-image"
+            src={`http://localhost:3000/${currentFilename}.webp`} // Use currentUrl for image
+            alt="track-cover"
+            onError={e => {
+              // Optional: Handle image loading errors (e.g., show a default image)
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
           />
           <div className="miniature-timeline-container">
-            <MiniatureTimeline url={currentUrl} mixer={mixer} deckId="deck1" />
-            {/*           <PlayPauseButton
-            play={mixer.getDeckInstance('deck1').play}
-            pause={mixer.getDeckInstance('deck1').pause}
-            size="sm"
-          /> */}
+            {/* Pass mixer instance and deckId to MiniatureTimeline */}
+            <MiniatureTimeline
+              getIsPlaying={handleIsPlaying}
+              url={deck1Ref.current.currentFileName}
+              seek={handleSeek} // Pass the MixerDeck instance
+              getCurrentPositionPercentage={handleGetCurrentPositionPercentage}
+            />
           </div>
         </div>
       )}
-
-      {/*       <PlayPauseButton
-        play={mixer.play("deck1")}
-        pause={mixer.pause("deck1")}
-      /> */}
 
       <Explorer />
     </div>

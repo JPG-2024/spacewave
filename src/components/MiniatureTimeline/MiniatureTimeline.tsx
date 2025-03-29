@@ -5,18 +5,28 @@ import {
   generateWaveformSVG,
   generateWaveformData,
 } from '@/utils/waveformTracker';
-import VerticalLoading from '../VerticalLoading/VerticalLoading';
 
 export const MiniatureTimeline = ({
-  deckId,
   url,
-  mixer,
-  width = 400,
+  seek,
+  getCurrentPositionPercentage,
+  getIsPlaying,
+  width = 500,
   height = 30,
   density = 2,
 }) => {
-  const [isLoading, setIsLoading] = useState(false);
+  // const [isLoading, setIsLoading] = useState(false);
   const miniatureRef = useRef(null);
+  const [progressLinePosition, setProgressLinePosition] = useState(0);
+
+  useEffect(() => {
+    const curr = setInterval(() => {
+      setProgressLinePosition(width * getCurrentPositionPercentage());
+    }, 200);
+    return () => {
+      clearInterval(curr);
+    };
+  }, []);
 
   useEffect(() => {
     if (!url) return;
@@ -24,16 +34,15 @@ export const MiniatureTimeline = ({
     miniatureRef.current.innerHTML = '';
 
     const fetchAudio = async () => {
-      setIsLoading(true);
+      // setIsLoading(true);
 
-      const { audioBuffer } = await generateAudioContextFromURL(
-        `http://localhost:3000/${url}.mp3`,
-      );
+      const { audioBuffer } = await generateAudioContextFromURL(url);
 
       const waveformData = await generateWaveformData({
         audioBuffer,
         pixelsPerSecond: density,
       });
+
       const waveformSVG = generateWaveformSVG(waveformData.waveformData, {
         color: '#692536',
         width,
@@ -41,36 +50,37 @@ export const MiniatureTimeline = ({
         amplification: 1,
       });
 
-      setIsLoading(false);
+      //setIsLoading(false);
       miniatureRef.current.innerHTML = waveformSVG;
     };
 
     fetchAudio();
   }, [url]);
 
-  const handleClick = event => {
+  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left; // x position within the element
     const xRatio = x / rect.width; // x position from 0 to 1
     // You can call the seek function here if needed
 
-    mixer.getDeckInstance(deckId).seek(xRatio);
+    seek(xRatio);
+  };
+
+  const getProgressLinePosition = () => {
+    return width * getCurrentPositionPercentage();
   };
 
   return (
-    <VerticalLoading
-      isLoading={isLoading}
-      width={`${width}px`}
-      height={`${height}px`}
-      ref={miniatureRef}
-      conditionalRender={false}
-    >
+    <div className="miniature-timeline">
       <div
-        id={`miniature-container-${deckId}`}
-        className="miniature-timeline"
+        className="miniature-timeline__svg"
         onClick={handleClick}
         ref={miniatureRef}
-      ></div>
-    </VerticalLoading>
+      />
+      <div
+        style={{ left: progressLinePosition }}
+        className="miniature-timeline__progress-line"
+      />
+    </div>
   );
 };

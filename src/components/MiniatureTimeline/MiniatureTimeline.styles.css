@@ -1,9 +1,21 @@
 .miniature-timeline {
+  position: relative;
+}
+
+.miniature-timeline__svg {
   display: flex;
   align-items: center;
   width: fit-content;
   cursor: n-resize;
-
   border-radius: 1px;
   opacity: 0.3;
+}
+
+.miniature-timeline__progress-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0.5px;
+  height: 100%;
+  background-color: var(--primary-color);
 }
