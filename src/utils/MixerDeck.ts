@@ -51,6 +51,7 @@ export class MixerDeck {
     // For simplicity here, we create it on init, but consider sharing or managing it externally.
     const audioContext = new (window.AudioContext ||
       (window as any).webkitAudioContext)();
+
     return {
       audioContext: audioContext,
       buffer: null,

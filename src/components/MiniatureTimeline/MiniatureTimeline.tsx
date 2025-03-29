@@ -1,27 +1,35 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './MiniatureTimeline.styles.css';
 import { generateAudioContextFromURL } from '../../utils/helpers';
 import {
   generateWaveformSVG,
   generateWaveformData,
 } from '@/utils/waveformTracker';
+import { useMixerDecks } from '@/contexts/MixerDecksProvider';
 
-export const MiniatureTimeline = ({
-  url,
-  seek,
-  getCurrentPositionPercentage,
-  getIsPlaying,
+interface MiniatureTimelineProps {
+  deckId: string;
+  width?: number;
+  height?: number;
+  density?: number;
+}
+
+export const MiniatureTimeline: React.FC<MiniatureTimelineProps> = ({
+  deckId,
   width = 500,
   height = 30,
   density = 2,
 }) => {
+  const { getDeck } = useMixerDecks();
   // const [isLoading, setIsLoading] = useState(false);
-  const miniatureRef = useRef(null);
+  const miniatureRef = useRef<HTMLDivElement>(null);
   const [progressLinePosition, setProgressLinePosition] = useState(0);
 
   useEffect(() => {
     const curr = setInterval(() => {
-      setProgressLinePosition(width * getCurrentPositionPercentage());
+      setProgressLinePosition(
+        width * getDeck(deckId)?.currentPositionPercentage,
+      );
     }, 200);
     return () => {
       clearInterval(curr);
@@ -29,14 +37,13 @@ export const MiniatureTimeline = ({
   }, []);
 
   useEffect(() => {
-    if (!url) return;
+    const fileName = getDeck(deckId)?.currentFileName;
 
-    miniatureRef.current.innerHTML = '';
+    if (!fileName) return;
 
+    if (miniatureRef.current) miniatureRef.current.innerHTML = '';
     const fetchAudio = async () => {
-      // setIsLoading(true);
-
-      const { audioBuffer } = await generateAudioContextFromURL(url);
+      const { audioBuffer } = await generateAudioContextFromURL(fileName);
 
       const waveformData = await generateWaveformData({
         audioBuffer,
@@ -51,11 +58,11 @@ export const MiniatureTimeline = ({
       });
 
       //setIsLoading(false);
-      miniatureRef.current.innerHTML = waveformSVG;
+      if (miniatureRef.current) miniatureRef.current.innerHTML = waveformSVG;
     };
 
     fetchAudio();
-  }, [url]);
+  }, [getDeck(deckId)?.currentFileName]);
 
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -63,11 +70,7 @@ export const MiniatureTimeline = ({
     const xRatio = x / rect.width; // x position from 0 to 1
     // You can call the seek function here if needed
 
-    seek(xRatio);
-  };
-
-  const getProgressLinePosition = () => {
-    return width * getCurrentPositionPercentage();
+    getDeck(deckId)?.seek(xRatio);
   };
 
   return (

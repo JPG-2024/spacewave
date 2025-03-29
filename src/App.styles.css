@@ -33,16 +33,6 @@
 .miniature-timeline-container > :first-child {
 }
 
-.app__track-cover {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 10px;
-  z-index: 10;
-  /* border: 1px solid var(--primary-color); */
-  border-radius: 10px;
-}
-
 .webGLCanvas {
   height: 100vh;
 }
