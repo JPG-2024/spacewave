@@ -1,5 +1,4 @@
 export const generateAudioContextFromURL = async (fileName: string) => {
-  debugger;
   const audioContext = new (window.AudioContext ||
     (window as any).webkitAudioContext)();
 
