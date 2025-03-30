@@ -164,6 +164,12 @@ const App = () => {
           <div className="miniature-timeline-container">
             {/* Pass mixer instance and deckId to MiniatureTimeline */}
             <MiniatureTimeline deckId="deck1" />
+            <button onClick={() => getDeck('deck1').changeTempo(130)}>
+              " change tempo "
+            </button>
+            <button onClick={() => getDeck('deck1').changeTempo(98)}>
+              " reset "
+            </button>
           </div>
         </div>
       )}

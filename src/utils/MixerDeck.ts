@@ -220,6 +220,8 @@ export class MixerDeck {
         this.state.playbackRate,
       );
 
+      this.state.timelineControls?.updatePlaybackRate(this.state.playbackRate);
+
       console.log(`Deck ${this.deckId}: Playing from ${offset.toFixed(2)}s`);
     } catch (error) {
       console.error(`Deck ${this.deckId}: Error playing audio:`, error);
@@ -339,38 +341,59 @@ export class MixerDeck {
     }
 
     const safeTempo = Math.max(30, Math.min(300, newTempo)); // Clamp tempo
-    this.state.tempo = safeTempo;
-    const newPlaybackRate = safeTempo / this.state.initialBpm;
+    if (this.state.tempo === safeTempo) return; // No change needed
 
-    // If playing, update the source node's playback rate *immediately*
-    if (this.state.isPlaying && this.state.source && this.state.audioContext) {
-      // Need to recalculate pausedAt based on time elapsed *before* rate change
+    const newPlaybackRate = safeTempo / this.state.initialBpm;
+    const wasPlaying = this.state.isPlaying;
+    let pauseTime = this.state.pausedAt; // Use current pausedAt if not playing
+
+    // --- Pause Logic ---
+    if (wasPlaying && this.state.source && this.state.audioContext) {
+      // Calculate exact pause time before stopping
       const elapsed =
         (this.state.audioContext.currentTime - this.state.startTime) *
-        this.state.playbackRate;
-      this.state.pausedAt += elapsed;
-      this.state.pausedAt = Math.min(this.state.pausedAt, this.state.duration); // Clamp
+        this.state.playbackRate; // Use current rate for calculation
+      pauseTime = this.state.pausedAt + elapsed;
+      pauseTime = Math.min(pauseTime, this.state.duration); // Clamp
 
-      // Update the rate
-      this.state.source.playbackRate.setValueAtTime(
-        newPlaybackRate,
-        this.state.audioContext.currentTime,
-      );
+      // Stop the current audio source
+      this.state.source.onended = null; // Prevent natural end logic
+      try {
+        this.state.source.stop();
+      } catch (e) {
+        console.warn(
+          `Deck ${this.deckId}: Error stopping source during tempo change:`,
+          e,
+        );
+      }
 
-      // Reset startTime for future calculations at the new rate
-      this.state.startTime = this.state.audioContext.currentTime;
+      // Update state to reflect pause
+      this.state.isPlaying = false;
+      this.state.status = 'paused'; // Temporarily paused
 
-      // Notify timeline (optional, if timeline needs rate info for visuals)
-      // this.state.timelineControls?.updatePlaybackRate(newPlaybackRate); // Assuming such a method exists
+      // Notify timeline visualization to pause
+      this.state.timelineControls?.pause(pauseTime);
+
+      // Disconnect nodes
+      this.disconnectNodes();
     }
 
-    // Store the new rate regardless of playback state
+    // --- Update State ---
+    this.state.pausedAt = pauseTime; // Update pausedAt to the calculated time
     this.state.playbackRate = newPlaybackRate;
+    this.state.tempo = safeTempo;
+
+    // Update timeline controls with the new rate (visual scaling/positioning)
+    // This needs to happen regardless of playback state
+    this.state.timelineControls?.updatePlaybackRate(newPlaybackRate);
 
     console.log(
-      `Deck ${this.deckId}: Tempo changed to ${safeTempo.toFixed(1)} BPM, Playback Rate: ${newPlaybackRate.toFixed(3)}`,
+      `Deck ${this.deckId}: Tempo changed to ${safeTempo.toFixed(1)} BPM, Playback Rate: ${newPlaybackRate.toFixed(3)}. Paused at: ${pauseTime.toFixed(2)}s`,
     );
-    // Note: This does not visually stretch/compress the timeline waveform itself.
+    // --- Resume Logic ---
+    if (wasPlaying) {
+      this.play(); // Restart playback with new rate from the calculated pauseTime
+    }
   }
 
   /**

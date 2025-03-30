@@ -6,6 +6,7 @@ import {
 } from '@/utils/waveformTracker';
 
 // Define colors using THREE.Color for consistency
+// Define colors using THREE.Color for consistency
 const HARMONIC_COLOR = new THREE.Color(0x3db8ff);
 const BEAT_WAVE_COLOR = new THREE.Color(0xff4271);
 const BEAT_MARK_COLOR = new THREE.Color(0xffffff);
@@ -25,6 +26,7 @@ export interface PlaybackControls {
   setPosition: () => void; // Consider renaming for clarity if it just updates position
   setOffset: (offset: number) => void;
   setSeekPosition: (seekTime: number) => void;
+  updatePlaybackRate: (newRate: number) => void; // Add method to update rate during playback
 }
 
 type CameraPositionMode = 'isometric' | 'side' | 'closeSide' | 'closeSideRight';
@@ -76,6 +78,11 @@ export class TimelineGenerator {
   private offset: number = 0; // Temporary offset for adjustments like beat matching
   private isPlaying: boolean = false;
 
+  // Scale animation properties
+  private currentTimelineScaleX: number = 1;
+  private targetTimelineScaleX: number = 1;
+  private readonly scaleLerpFactor: number = 0.1; // Adjust for animation speed (0-1)
+
   // Configuration for camera positions
   private readonly ISOMETRIC_POSITIONS = {
     isometric: [
@@ -98,7 +105,7 @@ export class TimelineGenerator {
     ],
     closeSideRight: [
       [-6, 0, 3],
-      [-20, 0, 4],
+      [0, 10, 4],
       [-6, 0, 3],
       [-20, 0, 4],
     ],
@@ -167,6 +174,24 @@ export class TimelineGenerator {
     if (!this.scene) {
       this.scene = new THREE.Scene();
       this.scene.name = 'MainScene';
+
+      // Add a directional light to simulate a far sun
+      const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+      sunLight.position.set(5, 5, 5); // Position the light high and to the right
+      sunLight.castShadow = true; // Enable shadow casting
+      sunLight.shadow.mapSize.width = 2048; // High quality shadows
+      sunLight.shadow.mapSize.height = 2048;
+      sunLight.shadow.camera.near = 0.5;
+      sunLight.shadow.camera.far = 500;
+      sunLight.shadow.camera.left = -100;
+      sunLight.shadow.camera.right = 100;
+      sunLight.shadow.camera.top = 100;
+      sunLight.shadow.camera.bottom = -100;
+      this.scene.add(sunLight);
+
+      // Add ambient light for overall scene illumination
+      const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+      this.scene.add(ambientLight);
     } else {
       this.cleanupScene(); // Clear previous objects if reusing
     }
@@ -355,7 +380,7 @@ export class TimelineGenerator {
         const geometry = new THREE.BufferGeometry().setFromPoints(
           segmentPoints,
         );
-        const material = new THREE.LineBasicMaterial({
+        const material = new THREE.MeshStandardMaterial({
           color: BEAT_WAVE_COLOR,
         });
         waveformSegmentsGroup.add(new THREE.Line(geometry, material));
@@ -367,11 +392,11 @@ export class TimelineGenerator {
     if (beatInterval && beatInterval > 0) {
       const beatLinesGroup = new THREE.Group();
       beatLinesGroup.name = 'BeatMarkers';
-      const beatMarkMaterial = new THREE.MeshBasicMaterial({
+      const beatMarkMaterial = new THREE.LineDashedMaterial({
         color: BEAT_MARK_COLOR,
-        opacity: 0.6,
+        opacity: 0.5,
         transparent: true,
-        depthTest: false, // Render markers on top of waveform
+        depthTest: true, // Render markers on top of waveform
       });
       // Use a thin box for beat markers for visibility
       const beatMarkGeometry = new THREE.BoxGeometry(0.01, scaleY * 1.1, 0.5); // Slightly taller than waveform
@@ -430,15 +455,18 @@ export class TimelineGenerator {
     const markerGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
     markerGeometry.rotateX(Math.PI / 2); // Rotar para que quede horizontal
     markerGeometry.rotateZ(Math.PI / 2); // Rotar para que quede horizontal
-    markerGeometry.translate(-thickness / 2, 0, 0); // Mover hacia abajo
+    markerGeometry.translate(-thickness / 2, 0, 0.1);
+
     markerGeometry.scale(1.2, 2.5, 1); // Escalar para que quepa en el centro
 
     const markerMaterial = new THREE.MeshStandardMaterial({
-      color: CENTER_MARKER_COLOR,
+      color: CENTER_MARKER_COLOR, // Fixed color format to hexadecimal
+      depthWrite: true,
+      depthTest: true,
       emissive: CENTER_MARKER_EMISSIVE_COLOR,
-      emissiveIntensity: 200,
-      depthTest: false,
-      side: THREE.DoubleSide, // Importante para que se vea bien desde ambos lados
+      emissiveIntensity: 0.5,
+      side: THREE.DoubleSide, // Important for visibility from both sides
+      visible: true,
     });
 
     this.centerMarker = new THREE.Mesh(markerGeometry, markerMaterial);
@@ -556,6 +584,11 @@ export class TimelineGenerator {
         }
         // Update visual position immediately
         this.updateTimelinePosition();
+      },
+      // Add the implementation for updating the playback rate
+      updatePlaybackRate: newRate => {
+        this.playbackRate = Math.max(0.1, newRate); // Update internal rate, ensure minimum
+        // No immediate visual update needed here, animate loop handles it
       },
     };
   }
@@ -735,8 +768,19 @@ export class TimelineGenerator {
     // At progress 0, group should be at +width/2 (start of waveform at center marker)
     // At progress 1, group should be at -width/2 (end of waveform at center marker)
     const waveformWidth = window.innerWidth;
-    const targetX = waveformWidth / 2 - progress * waveformWidth;
 
+    // Calculate scale factor based on playback rate (inverse relationship)
+    // scale = 1 + (1 - rate) = 2 - rate
+    const effectivePlaybackRate = Math.max(this.playbackRate, 0.1); // Prevent extreme scaling
+    // Calculate the TARGET scale based on playback rate
+    this.targetTimelineScaleX = Math.max(0.1, 2 - effectivePlaybackRate); // Ensure scale doesn't go below 0.1
+
+    // Calculate targetX based on the CURRENTLY applied scale for smooth positioning during animation
+    const targetX =
+      (waveformWidth / 2 - progress * waveformWidth) *
+      this.currentTimelineScaleX;
+
+    // Set the adjusted position (scaling is handled in the animate loop)
     this.timelineGroup.position.x = targetX;
 
     // Move the star field along with the timeline
@@ -767,8 +811,30 @@ export class TimelineGenerator {
       this.camera!.updateProjectionMatrix();
     }
 
-    // Update timeline position based on playback state
+    // Update timeline target scale and position
     this.updateTimelinePosition();
+
+    // --- Animate Scale ---
+    if (this.timelineGroup) {
+      // Lerp the current scale towards the target scale
+      this.currentTimelineScaleX +=
+        (this.targetTimelineScaleX - this.currentTimelineScaleX) *
+        this.scaleLerpFactor;
+
+      // Apply the interpolated scale
+      this.timelineGroup.scale.set(this.currentTimelineScaleX, 1, 1);
+
+      // Optional: Re-adjust position slightly based on the *very latest* scale applied this frame?
+      // This might prevent tiny visual jitter if scale changes significantly in one frame.
+      // Let's test without it first. If needed, uncomment and potentially recalculate progress:
+      // const waveformWidth = window.innerWidth;
+      // const currentPosition = ... // Need currentPosition here if recalculating progress
+      // const progress = currentPosition / this.trackDuration;
+      // const adjustedX = (waveformWidth / 2 - progress * waveformWidth) * this.currentTimelineScaleX;
+      // this.timelineGroup.position.x = adjustedX;
+      // if (this.starFieldGroup) { this.starFieldGroup.position.x = adjustedX; }
+    }
+    // --- End Animate Scale ---
 
     // Render the scene
     if (this.renderer && this.scene && this.camera) {

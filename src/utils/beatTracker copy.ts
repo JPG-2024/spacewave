@@ -24,7 +24,7 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
   harmonySections: HarmonySection[];
   beats: number[];
 }> {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     // Configuración inicial igual que antes...
     const sampleRate = audioBuffer.sampleRate;
     const length = audioBuffer.length;
@@ -33,9 +33,74 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
     const source = offlineContext.createBufferSource();
     source.buffer = audioBuffer;
 
+    const analysisContext = new OfflineAudioContext(
+      1,
+      sampleRate * 5,
+      sampleRate,
+    ); // Analizar 5 segundos
+    const analysisSource = analysisContext.createBufferSource();
+    // Extraer los primeros 5 segundos del audioBuffer original
+    const segmentLength = Math.min(audioBuffer.length, sampleRate * 5);
+    const segmentBuffer = analysisContext.createBuffer(
+      1,
+      segmentLength,
+      sampleRate,
+    );
+    // Copiar datos (asumiendo que audioBuffer ya es mono o tomas un canal)
+    audioBuffer.copyFromChannel(segmentBuffer.getChannelData(0), 0, 0); // Copia desde el inicio
+    analysisSource.buffer = segmentBuffer;
+
+    const analyser = analysisContext.createAnalyser();
+    analyser.fftSize = 2048; // Tamaño común para FFT
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength); // Para guardar los datos de frecuencia
+
+    analysisSource.connect(analyser);
+    // No necesitamos conectar al destination si solo queremos analizar
+    analysisSource.start(0);
+
+    // Renderizar para obtener los datos del analizador
+    await analysisContext.startRendering();
+    analyser.getByteFrequencyData(dataArray); // Obtener datos de frecuencia
+
+    // Encontrar el pico en el rango bajo (ej: 40Hz - 200Hz)
+    let maxVal = -1;
+    let maxIndex = -1;
+    const nyquist = sampleRate / 2;
+    const lowHz = 40;
+    const highHz = 200;
+
+    for (let i = 0; i < bufferLength; i++) {
+      const freq = (i * nyquist) / bufferLength;
+      if (freq >= lowHz && freq <= highHz) {
+        if (dataArray[i] > maxVal) {
+          maxVal = dataArray[i];
+          maxIndex = i;
+        }
+      }
+      if (freq > highHz) break; // Optimización: salir si ya pasamos el rango
+    }
+
+    let estimatedFrequency = (maxIndex * nyquist) / bufferLength;
+    let dynamicCutoff = 120; // Valor por defecto
+
+    if (maxIndex !== -1) {
+      // Calcular el cutoff: un poco por encima del pico detectado
+      dynamicCutoff = estimatedFrequency + 40; // Añadir un margen
+      // Limitar el valor a un rango razonable
+      dynamicCutoff = Math.max(80, Math.min(180, dynamicCutoff));
+      console.log(
+        `Frecuencia baja dominante estimada: ${estimatedFrequency.toFixed(1)} Hz. Ajustando filtro a: ${dynamicCutoff.toFixed(1)} Hz`,
+      );
+    } else {
+      console.log(
+        'No se detectó un pico claro de baja frecuencia, usando valor por defecto.',
+      );
+    }
+
     const lowPassFilter = offlineContext.createBiquadFilter();
     lowPassFilter.type = 'lowpass';
-    lowPassFilter.frequency.value = 150;
+    lowPassFilter.frequency.value = dynamicCutoff;
 
     source.connect(lowPassFilter);
     lowPassFilter.connect(offlineContext.destination);
@@ -56,7 +121,7 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
           while (i < len) {
             if (data[i] > threshold) {
               peaks.push(i);
-              i += Math.floor(sampleRate * 0.3);
+              i += Math.floor(sampleRate * 0.25);
             } else {
               i++;
             }
@@ -70,52 +135,6 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
         if (peaks.length === 0) {
           return reject(new Error('No se detectaron picos en el audio.'));
         }
-
-        // 1. Detectar secciones sin beats (armonía)
-        const harmonySections: HarmonySection[] = [];
-        let lastPeak = 0;
-
-        // Añadir sección inicial si existe (desde 0 hasta el primer beat)
-        if (peaks[0] > 0) {
-          harmonySections.push({
-            start: 0,
-            end: peaks[0] / sampleRate,
-            duration: peaks[0] / sampleRate,
-          });
-        }
-
-        // Analizar espacios entre beats
-        for (let i = 1; i < peaks.length; i++) {
-          const prevPeak = peaks[i - 1];
-          const currentPeak = peaks[i];
-          const gap = currentPeak - prevPeak;
-          const gapInSeconds = gap / sampleRate;
-
-          // Consideramos sección de armonía si el gap es significativamente mayor que el beatInterval esperado
-          if (gapInSeconds > (60 / 120) * 1.5) {
-            // 1.5 veces el intervalo de un tempo moderado (120 BPM)
-            harmonySections.push({
-              start: prevPeak / sampleRate,
-              end: currentPeak / sampleRate,
-              duration: gapInSeconds,
-            });
-          }
-          lastPeak = currentPeak;
-        }
-
-        // Añadir sección final si existe (desde el último beat hasta el final)
-        if (lastPeak < channelData.length) {
-          harmonySections.push({
-            start: lastPeak / sampleRate,
-            end: channelData.length / sampleRate,
-            duration: (channelData.length - lastPeak) / sampleRate,
-          });
-        }
-
-        // Filtrar secciones muy cortas (menos de 0.5 segundos)
-        const significantHarmonySections = harmonySections.filter(
-          section => section.duration >= 0.5,
-        );
 
         // Calculamos los intervalos entre picos. Se analiza, por cada pico, los siguientes 10 para obtener una mejor estadística.
         const intervalCounts: { interval: number; count: number }[] = [];
@@ -173,6 +192,14 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
         const beatInterval = 60 / detectedTempo;
         const offset = peaks[0] / sampleRate;
 
+        // Llamar a la función para detectar secciones armónicas
+        const significantHarmonySections = detectHarmonySections(
+          peaks,
+          sampleRate,
+          channelData.length,
+          detectedTempo,
+        );
+
         // Devolver tanto la información de beats como de secciones armónicas
         resolve({
           tempo: detectedTempo,
@@ -186,4 +213,54 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
         reject(err);
       });
   });
+}
+
+function detectHarmonySections(
+  peaks: number[],
+  sampleRate: number,
+  channelLength: number,
+  tempo: number = 120,
+): HarmonySection[] {
+  const harmonySections: HarmonySection[] = [];
+  let lastPeak = 0;
+
+  // Añadir sección inicial si existe (desde 0 hasta el primer beat)
+  if (peaks[0] > 0) {
+    harmonySections.push({
+      start: 0,
+      end: peaks[0] / sampleRate,
+      duration: peaks[0] / sampleRate,
+    });
+  }
+
+  // Analizar espacios entre beats
+  for (let i = 1; i < peaks.length; i++) {
+    const prevPeak = peaks[i - 1];
+    const currentPeak = peaks[i];
+    const gap = currentPeak - prevPeak;
+    const gapInSeconds = gap / sampleRate;
+
+    // Consideramos sección de armonía si el gap es significativamente mayor que el beatInterval esperado
+    if (gapInSeconds > (60 / tempo) * 1.5) {
+      // 1.5 veces el intervalo de un tempo moderado (120 BPM)
+      harmonySections.push({
+        start: prevPeak / sampleRate,
+        end: currentPeak / sampleRate,
+        duration: gapInSeconds,
+      });
+    }
+    lastPeak = currentPeak;
+  }
+
+  // Añadir sección final si existe (desde el último beat hasta el final)
+  if (lastPeak < channelLength) {
+    harmonySections.push({
+      start: lastPeak / sampleRate,
+      end: channelLength / sampleRate,
+      duration: (channelLength - lastPeak) / sampleRate,
+    });
+  }
+
+  // Filtrar secciones muy cortas (menos de 0.5 segundos)
+  return harmonySections.filter(section => section.duration >= 0.5); // 0.5 seconds threshold for filtering short sections
 }
