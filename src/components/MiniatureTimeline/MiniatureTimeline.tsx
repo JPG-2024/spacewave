@@ -1,11 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './MiniatureTimeline.styles.css';
 import { generateAudioContextFromURL } from '../../utils/helpers';
-import {
-  generateWaveformSVG,
-  generateWaveformData,
-} from '@/utils/waveformTracker';
+import { generateWaveformData } from '@/utils/waveformTracker';
 import { useMixerDecks } from '@/contexts/MixerDecksProvider';
+import { generateWaveformSVG } from '@/utils/generateWaveformSVG';
 
 interface MiniatureTimelineProps {
   deckId: string;
