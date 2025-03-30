@@ -46,14 +46,17 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
       .then(renderedBuffer => {
         const channelData = renderedBuffer.getChannelData(0);
 
-        function getPeaksAtThreshold(data, threshold) {
+        function getPeaksAtThreshold(
+          data: Float32Array<ArrayBufferLike>,
+          threshold: number,
+        ) {
           const peaks: number[] = [];
           const len = data.length;
           let i = 0;
           while (i < len) {
             if (data[i] > threshold) {
               peaks.push(i);
-              i += Math.floor(sampleRate * 0.25);
+              i += Math.floor(sampleRate * 0.3);
             } else {
               i++;
             }
@@ -61,7 +64,7 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
           return peaks;
         }
 
-        const threshold = 0.3;
+        const threshold = 0.5;
         const peaks = getPeaksAtThreshold(channelData, threshold);
 
         if (peaks.length === 0) {
