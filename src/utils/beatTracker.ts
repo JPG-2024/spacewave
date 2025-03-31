@@ -99,8 +99,6 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
 
         const similarPeaks = findSimilarPeaks(channelData, maxPeak);
 
-        console.log({ similarPeaks });
-
         // Detectar gaps largos (más de 4 segundos)
         const longGapSections: HarmonySection[] = [];
         const LONG_GAP_THRESHOLD = 4; // 4 segundos
@@ -174,8 +172,6 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
 
         tempoCounts.sort((a, b) => b.count - a.count);
 
-        console.log(tempoCounts);
-
         // Con este código:
         const validTempos = tempoCounts.filter(
           tc => tc.tempo >= MINIMUN_TEMPO && tc.tempo <= MAXIMUM_TEMPO,
@@ -201,12 +197,8 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
           return reject(new Error('No se pudo determinar el tempo.'));
         }
 
-        console.log(detectedTempo);
-
         const beatInterval = 60 / detectedTempo;
         const offset = similarPeaks[0].timeInSeconds;
-
-        console.log('detectedTempo', detectedTempo);
 
         resolve({
           tempo: detectedTempo,
