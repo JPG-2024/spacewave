@@ -4,6 +4,9 @@ interface HarmonySection {
   duration: number;
 }
 
+const MINIMUN_TEMPO = 120.0;
+const MAXIMUM_TEMPO = 150.0;
+
 /**
  * detectBeat analiza un AudioBuffer y devuelve una promesa que resuelve un objeto con:
  * - tempo: BPM detectado.
@@ -25,7 +28,6 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
   beats: number[];
 }> {
   return new Promise((resolve, reject) => {
-    // Configuración inicial igual que antes...
     const sampleRate = audioBuffer.sampleRate;
     const length = audioBuffer.length;
     const offlineContext = new OfflineAudioContext(1, length, sampleRate);
@@ -46,115 +48,121 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
       .then(renderedBuffer => {
         const channelData = renderedBuffer.getChannelData(0);
 
-        function getPeaksAtThreshold(
-          data: Float32Array<ArrayBufferLike>,
-          threshold: number,
+        // Find maximum peak
+        const maxPeak = channelData.reduce(
+          (max, value) => Math.max(max, value),
+          0,
+        );
+
+        // Find similar peaks function remains unchanged
+        function findSimilarPeaks(
+          data: Float32Array,
+          maxValue: number,
+          tolerance: number = 0.8,
         ) {
-          const peaks: number[] = [];
-          const len = data.length;
+          const peaks: {
+            position: number;
+            amplitude: number;
+            timeInSeconds: number;
+          }[] = [];
+          const threshold = maxValue * tolerance;
+          const minGap = Math.floor(sampleRate * 0.1);
+
           let i = 0;
-          while (i < len) {
-            if (data[i] > threshold) {
-              peaks.push(i);
-              i += Math.floor(sampleRate * 0.3);
+          while (i < data.length) {
+            if (Math.abs(data[i]) > threshold) {
+              let localMax = Math.abs(data[i]);
+              let localMaxIndex = i;
+              const windowSize = 50;
+
+              for (let j = 0; j < windowSize && i + j < data.length; j++) {
+                if (Math.abs(data[i + j]) > localMax) {
+                  localMax = Math.abs(data[i + j]);
+                  localMaxIndex = i + j;
+                }
+              }
+
+              peaks.push({
+                position: localMaxIndex,
+                amplitude: localMax,
+                timeInSeconds: localMaxIndex / sampleRate,
+              });
+
+              i += minGap;
             } else {
               i++;
             }
           }
+
           return peaks;
         }
 
-        const threshold = 0.3;
-        const peaks = getPeaksAtThreshold(channelData, threshold);
+        const similarPeaks = findSimilarPeaks(channelData, maxPeak);
 
-        if (peaks.length === 0) {
+        console.log(similarPeaks);
+        // Detectar gaps largos (más de 4 segundos)
+        const longGapSections: HarmonySection[] = [];
+        const LONG_GAP_THRESHOLD = 4; // 4 segundos
+
+        for (let i = 1; i < similarPeaks.length; i++) {
+          const prevPeak = similarPeaks[i - 1];
+          const currentPeak = similarPeaks[i];
+          const gapDuration =
+            currentPeak.timeInSeconds - prevPeak.timeInSeconds;
+
+          if (gapDuration > LONG_GAP_THRESHOLD) {
+            longGapSections.push({
+              start: prevPeak.timeInSeconds,
+              end: currentPeak.timeInSeconds,
+              duration: gapDuration,
+            });
+          }
+        }
+
+        // También verificar si hay un gap largo al inicio o final del audio
+        const audioDuration = channelData.length / sampleRate;
+
+        // Gap al inicio
+        if (similarPeaks[0].timeInSeconds > LONG_GAP_THRESHOLD) {
+          longGapSections.unshift({
+            start: 0,
+            end: similarPeaks[0].timeInSeconds,
+            duration: similarPeaks[0].timeInSeconds,
+          });
+        }
+
+        // Gap al final
+        const lastPeak = similarPeaks[similarPeaks.length - 1];
+        if (audioDuration - lastPeak.timeInSeconds > LONG_GAP_THRESHOLD) {
+          longGapSections.push({
+            start: lastPeak.timeInSeconds,
+            end: audioDuration,
+            duration: audioDuration - lastPeak.timeInSeconds,
+          });
+        }
+
+        if (similarPeaks.length === 0) {
           return reject(new Error('No se detectaron picos en el audio.'));
         }
 
-        // 1. Detectar secciones sin beats (armonía)
-        const harmonySections: HarmonySection[] = [];
-        let lastPeak = 0;
-
-        // Añadir sección inicial si existe (desde 0 hasta el primer beat)
-        if (peaks[0] > 0) {
-          harmonySections.push({
-            start: 0,
-            end: peaks[0] / sampleRate,
-            duration: peaks[0] / sampleRate,
-          });
+        // Rest of the tempo calculation remains the same
+        const intervalMap = new Map<number, number>();
+        for (let i = 0; i < similarPeaks.length - 1; i++) {
+          const interval =
+            similarPeaks[i + 1].timeInSeconds - similarPeaks[i].timeInSeconds;
+          intervalMap.set(interval, (intervalMap.get(interval) || 0) + 1);
         }
 
-        // Analizar espacios entre beats
-        for (let i = 1; i < peaks.length; i++) {
-          const prevPeak = peaks[i - 1];
-          const currentPeak = peaks[i];
-          const gap = currentPeak - prevPeak;
-          const gapInSeconds = gap / sampleRate;
+        const intervalCounts = Array.from(intervalMap, ([interval, count]) => ({
+          interval,
+          count,
+        }));
 
-          // Consideramos sección de armonía si el gap es significativamente mayor que el beatInterval esperado
-          if (gapInSeconds > (60 / 120) * 1.5) {
-            // 1.5 veces el intervalo de un tempo moderado (120 BPM)
-            harmonySections.push({
-              start: prevPeak / sampleRate,
-              end: currentPeak / sampleRate,
-              duration: gapInSeconds,
-            });
-          }
-          lastPeak = currentPeak;
-        }
-
-        // Añadir sección final si existe (desde el último beat hasta el final)
-        if (lastPeak < channelData.length) {
-          harmonySections.push({
-            start: lastPeak / sampleRate,
-            end: channelData.length / sampleRate,
-            duration: (channelData.length - lastPeak) / sampleRate,
-          });
-        }
-
-        // Filtrar secciones muy cortas (menos de 0.5 segundos)
-        const significantHarmonySections = harmonySections.filter(
-          section => section.duration >= 0.5,
-        );
-
-        // Calculamos los intervalos entre picos. Se analiza, por cada pico, los siguientes 10 para obtener una mejor estadística.
-        const intervalCounts: { interval: number; count: number }[] = [];
-
-        peaks.forEach((peak, index) => {
-          for (let i = 1; i <= 10; i++) {
-            if (index + i < peaks.length) {
-              const interval = peaks[index + i] - peak;
-              // Buscamos si ya se ha registrado este intervalo (exacto).
-              let found = false;
-              for (let j = 0; j < intervalCounts.length; j++) {
-                if (intervalCounts[j].interval === interval) {
-                  intervalCounts[j].count++;
-                  found = true;
-                  break;
-                }
-              }
-              if (!found) {
-                intervalCounts.push({ interval, count: 1 });
-              }
-            }
-          }
-        });
-
-        // Agrupamos los intervalos según el tempo que sugieren.
         const tempoCounts: { tempo: number; count: number }[] = [];
-
         intervalCounts.forEach(({ interval, count }) => {
-          // Convertimos el intervalo (en muestras) a segundos.
-          const seconds = interval / sampleRate;
-          // Teórico tempo en BPM.
-          let theoreticalTempo = 60 / seconds;
-          // Ajustamos el tempo para que esté entre 90 y 180 BPM (multiplicando o dividiendo por 2).
-          while (theoreticalTempo < 90) theoreticalTempo *= 2;
-          while (theoreticalTempo > 180) theoreticalTempo /= 2;
-          // Redondeamos para evitar pequeñas variaciones.
-          theoreticalTempo = Math.round(theoreticalTempo);
+          let theoreticalTempo = 60 / interval;
+          theoreticalTempo = Number(theoreticalTempo.toFixed(2));
 
-          // Sumamos el recuento en el histograma.
           let existing = tempoCounts.find(tc => tc.tempo === theoreticalTempo);
           if (existing) {
             existing.count += count;
@@ -164,22 +172,47 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
         });
 
         tempoCounts.sort((a, b) => b.count - a.count);
-        const detectedTempo = tempoCounts.length ? tempoCounts[0].tempo : null;
+
+        console.log(tempoCounts);
+
+        // Con este código:
+        const validTempos = tempoCounts.filter(
+          tc => tc.tempo >= MINIMUN_TEMPO && tc.tempo <= MAXIMUM_TEMPO,
+        );
+
+        let detectedTempo = null;
+
+        if (validTempos.length >= 2) {
+          detectedTempo = Number(
+            ((validTempos[0].tempo + validTempos[1].tempo) / 2).toFixed(2),
+          );
+        } else if (validTempos.length === 1) {
+          detectedTempo = validTempos[0].tempo;
+        } else if (tempoCounts.length >= 2) {
+          detectedTempo = Number(
+            ((tempoCounts[0].tempo + tempoCounts[1].tempo) / 2).toFixed(2),
+          );
+        } else if (tempoCounts.length === 1) {
+          detectedTempo = tempoCounts[0].tempo;
+        }
 
         if (!detectedTempo) {
           return reject(new Error('No se pudo determinar el tempo.'));
         }
 
-        const beatInterval = 60 / detectedTempo;
-        const offset = peaks[0] / sampleRate;
+        console.log(detectedTempo);
 
-        // Devolver tanto la información de beats como de secciones armónicas
+        const beatInterval = 60 / detectedTempo;
+        const offset = similarPeaks[0].timeInSeconds;
+
+        console.log('detectedTempo', detectedTempo);
+
         resolve({
           tempo: detectedTempo,
           firstBeatOffset: offset,
           beatInterval: beatInterval,
-          harmonySections: significantHarmonySections, // Secciones sin beats
-          beats: peaks.map(peak => peak / sampleRate), // Todos los beats detectados
+          harmonySections: longGapSections,
+          beats: similarPeaks.map(peak => peak.timeInSeconds),
         });
       })
       .catch(err => {

@@ -671,72 +671,15 @@ export class TimelineGenerator {
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(window.devicePixelRatio); // Re-apply pixel ratio
 
-    // --- Recalculate and potentially regenerate waveform ---
-    // This is the complex part. If the waveform width is tied to window.innerWidth,
-    // the geometry needs to be updated or regenerated.
-    // Option 1: Simple scaling (might distort aspect ratio)
-    // const scaleX = width / oldWidth; // Need to store oldWidth
-    // this.timelineGroup.scale.x = scaleX;
-
-    // Option 2: Regenerate (more accurate, potentially expensive)
     console.warn(
       'Window resized: Waveform visualization might need regeneration for accurate scaling.',
     );
-    // If choosing regeneration:
-    // 1. Remove old waveform/beat markers from timelineGroup
-    // 2. Dispose their geometries/materials
-    // 3. Call createWaveformVisualization() again (it uses current window.innerWidth)
-
-    // For now, just adjust the group's starting position if needed (less critical)
-    // The updateTimelinePosition handles the dynamic movement based on progress.
-    // this.timelineGroup.position.x = width / 2; // Reset initial offset?
 
     // Re-render the scene after resize adjustments
     if (this.scene && this.camera) {
       this.renderer.render(this.scene, this.camera);
     }
   }
-
-  // --- Mouse Click Interaction (Example) ---
-  /*
-    private onMouseClick(event: MouseEvent): void {
-        if (!this.renderer || !this.camera || !this.timelineGroup) return;
-
-        // Calculate normalized device coordinates (-1 to +1)
-        const rect = this.renderer.domElement.getBoundingClientRect();
-        const mouse = new THREE.Vector2();
-        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-        const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(mouse, this.camera);
-
-        // Find intersections with the timeline group's children (recursive)
-        const intersects = raycaster.intersectObjects(this.timelineGroup.children, true);
-
-        if (intersects.length > 0) {
-            // Get the intersection point in world coordinates
-            const worldIntersectionPoint = intersects[0].point;
-            // Convert world point to the local coordinate system of the timelineGroup
-            const localIntersectionPoint = this.timelineGroup.worldToLocal(worldIntersectionPoint.clone());
-
-            console.log("Timeline clicked at local X:", localIntersectionPoint.x);
-
-            // Convert local X coordinate to time
-            const waveformWidth = window.innerWidth; // The width used in createWaveformVisualization
-            // Map the local X back to a progress value (0 to 1)
-            const progress = (localIntersectionPoint.x + waveformWidth / 2) / waveformWidth;
-            const seekTime = progress * this.trackDuration;
-
-            console.log(`Estimated seek time: ${seekTime.toFixed(2)}s`);
-
-            // Example: Trigger seek using playback controls
-            // this.createPlaybackControls().setSeekPosition(seekTime); // Need access to controls instance
-            // Or, if you have a dedicated seek method in the hook:
-            // this.seekCallback(seekTime); // Requires passing a callback during init
-        }
-    }
-    */
 
   // --- Core Animation Logic ---
   private updateTimelinePosition(): void {
