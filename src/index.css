@@ -2,6 +2,8 @@
 
 :root {
   --primary-color: #ff4271;
+  --primary-color-bright: #f882a0;
+  --primary-color-dark: #6b2234;
 
   font-family: Monaco, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;

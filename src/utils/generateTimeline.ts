@@ -407,14 +407,17 @@ export class TimelineGenerator {
         beatTime += beatInterval
       ) {
         // Map beat time to x-coordinate
-        const beatX = (beatTime / duration) * waveformWidth - waveformWidth / 2;
+        const alignmentOffset = 0.1;
+        const beatX =
+          ((beatTime + alignmentOffset) / duration) * waveformWidth -
+          waveformWidth / 2;
         const beatMark = new THREE.Mesh(beatMarkGeometry, beatMarkMaterial);
         // Position slightly behind the waveform (negative Z)
         beatMark.position.set(beatX, 0, -0.05);
         beatLinesGroup.add(beatMark);
       }
       // Dispose geometry after creating meshes if not reused
-      // beatMarkGeometry.dispose();
+      //beatMarkGeometry.dispose();
       this.timelineGroup.add(beatLinesGroup);
     } else {
       console.log('No beat interval data, skipping beat markers.');
@@ -485,7 +488,7 @@ export class TimelineGenerator {
     const colors = new Float32Array(starCount * 3); // Optional: for varied star colors
 
     const waveformWidth = window.innerWidth; // Use the same width reference
-    const spreadZ = 120;
+    const spreadZ = 100;
     const spread = {
       x: waveformWidth * 1.5,
       y: window.innerHeight * 0.5,

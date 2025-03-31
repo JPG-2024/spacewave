@@ -21,7 +21,7 @@ export interface DeckState {
   source: AudioBufferSourceNode | null;
   startTime: number; // audioContext.currentTime when the current playback segment started
   tempo: number | null; // Current BPM
-  initialBpm: number | null; // BPM detected on load
+  initialTempo: number | null; // BPM detected on load
   timelineGenerator: TimelineGenerator | null;
   timelineControls: PlaybackControls | null;
   cameraControls: CameraControls | null; // Store camera controls if needed
@@ -64,7 +64,7 @@ export class MixerDeck {
       source: null,
       startTime: 0,
       tempo: null,
-      initialBpm: null,
+      initialTempo: null,
       timelineGenerator: null,
       timelineControls: null,
       cameraControls: null,
@@ -136,7 +136,7 @@ export class MixerDeck {
       this.state.timelineObject = timeLine;
       this.state.timelineControls = playbackControls;
       this.state.tempo = tempo;
-      this.state.initialBpm = tempo; // Store the initial BPM
+      this.state.initialTempo = tempo; // Store the initial BPM
       this.state.status = 'loaded';
       this.state.error = null;
       this.state.currentFileName = fileName;
@@ -333,7 +333,7 @@ export class MixerDeck {
    * @param newTempo - The desired tempo in BPM.
    */
   public changeTempo(newTempo: number): void {
-    if (!this.state.initialBpm || this.state.status === 'empty') {
+    if (!this.state.initialTempo || this.state.status === 'empty') {
       console.warn(
         `Deck ${this.deckId}: Cannot change tempo without initial BPM or buffer.`,
       );
@@ -343,7 +343,7 @@ export class MixerDeck {
     const safeTempo = Math.max(30, Math.min(300, newTempo)); // Clamp tempo
     if (this.state.tempo === safeTempo) return; // No change needed
 
-    const newPlaybackRate = safeTempo / this.state.initialBpm;
+    const newPlaybackRate = safeTempo / this.state.initialTempo;
     const wasPlaying = this.state.isPlaying;
     let pauseTime = this.state.pausedAt; // Use current pausedAt if not playing
 
@@ -484,7 +484,7 @@ export class MixerDeck {
     this.state.source = initial.source;
     this.state.startTime = initial.startTime;
     this.state.tempo = initial.tempo;
-    this.state.initialBpm = initial.initialBpm;
+    this.state.initialTempo = initial.initialTempo;
     this.state.timelineControls = initial.timelineControls;
     this.state.cameraControls = initial.cameraControls;
     this.state.timelineObject = initial.timelineObject;
@@ -553,6 +553,10 @@ export class MixerDeck {
 
   public get isPlayingState(): boolean {
     return this.state.isPlaying;
+  }
+
+  public get initialTempo(): number | null {
+    return this.state.initialTempo;
   }
 
   public get currentTempo(): number | null {

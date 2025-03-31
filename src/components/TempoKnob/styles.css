@@ -1,27 +1,35 @@
 .tempo-knob {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: #2a2a2a;
+  display: flex;
+  gap: 10px;
+  width: 100px;
+  height: 30px;
+  border-radius: 10px;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   font-weight: bold;
   user-select: none;
-  border: 10px solid #327721d8;
+  border: 3px solid var(--primary-color-dark);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   margin: 10px auto;
   transition: border 0.1s ease-out;
-  cursor: ns-resize !important;
-  background: linear-gradient(145deg, #2e2e2e, #3a3838);
+}
+
+.tempo-knob__tempo {
+  cursor: grab !important;
+}
+
+.tempo-knob__tempo:active {
+  cursor: grabbing !important;
 }
 
 .tempo-knob:active {
-  background: #3a3a3a;
-  border: 10px solid #79f15b;
+  background: transparent;
+  border: 3px solid var(--primary-color-bright);
   transition: border 0.1s infinite ease-in;
-  color: #79f15b;
-  box-shadow: 0 0px 10px rgb(49, 228, 43);
+
+  box-shadow: 0 0px 10px var(--primary-color-bright);
   animation: box-shadow 0.5s infinite alternate;
 }

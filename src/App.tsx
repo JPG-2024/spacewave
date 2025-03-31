@@ -7,6 +7,7 @@ import { MiniatureTimeline } from '@/components/MiniatureTimeline/MiniatureTimel
 import VerticalLoading from '@/components/VerticalLoading/VerticalLoading';
 import { useMixerDecks } from '@/contexts/MixerDecksProvider';
 import TrackCover from '@/components/TrackCover/TrackCover';
+import TempoKnob from './components/TempoKnob/TempoKnob';
 
 const App = () => {
   const { addDeck, getDeck } = useMixerDecks();
@@ -138,6 +139,14 @@ const App = () => {
     );
   };
 
+  const handleChangeTempo = (tempo: number) => {
+    getDeck('deck1').changeTempo(tempo);
+  };
+
+  const handleGetTempo = () => {
+    return getDeck('deck1').initialTempo;
+  };
+
   return (
     <div className="app">
       <DroppableArea
@@ -158,19 +167,17 @@ const App = () => {
       </DroppableArea>
 
       {/* Conditionally render bottom bar only when a track is loaded (currentUrl is set) */}
-      {getDeck('deck1') && getDeck('deck1')?.currentFileName && (
+      {getDeck('deck1') && getDeck('deck1')?.currentStatus === 'loaded' && (
         <div className="app__bottom-bar">
           <TrackCover fileName={getDeck('deck1')?.currentFileName} />
           <div className="miniature-timeline-container">
             {/* Pass mixer instance and deckId to MiniatureTimeline */}
             <MiniatureTimeline deckId="deck1" />
-            <button onClick={() => getDeck('deck1').changeTempo(130)}>
-              " change tempo "
-            </button>
-            <button onClick={() => getDeck('deck1').changeTempo(98)}>
-              " reset "
-            </button>
           </div>
+          <TempoKnob
+            getTempo={handleGetTempo}
+            changeTempo={handleChangeTempo}
+          />
         </div>
       )}
 

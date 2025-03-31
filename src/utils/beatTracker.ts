@@ -99,7 +99,8 @@ export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
 
         const similarPeaks = findSimilarPeaks(channelData, maxPeak);
 
-        console.log(similarPeaks);
+        console.log({ similarPeaks });
+
         // Detectar gaps largos (más de 4 segundos)
         const longGapSections: HarmonySection[] = [];
         const LONG_GAP_THRESHOLD = 4; // 4 segundos
