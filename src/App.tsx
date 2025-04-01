@@ -1,38 +1,28 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import './App.styles.css';
 import { Explorer } from '@/components/Explorer/Explorer';
 import { DroppableArea } from '@/components/DroppableArea/DroppableArea';
-
 import { MiniatureTimeline } from '@/components/MiniatureTimeline/MiniatureTimeline';
 import VerticalLoading from '@/components/VerticalLoading/VerticalLoading';
+import FilterComponent from '@/components/FilterComponent/FilterComponent';
 import { useMixerDecks } from '@/contexts/MixerDecksProvider';
 import TrackCover from '@/components/TrackCover/TrackCover';
 import TempoKnob from './components/TempoKnob/TempoKnob';
-import GainFilter from './components/GainFIlter/GainFIlter';
+import GainFilter from '@/components/GainFIlter/GainFIlter';
 import { useFilter } from './hooks/useFilter';
+import uiState from '@/store/uiStore';
 
 const App = () => {
   const { addDeck, getDeck } = useMixerDecks();
   const [isLoading, setIsLoading] = useState(false);
   const webGLRef = useRef<HTMLDivElement | null>(null);
 
-  const value = useFilter({
-    key: 'q',
-    min: 0,
-    max: 0.3,
-  });
-
+  //TODO: only for dev purpose
   useEffect(() => {
-    handleChangeGain(value);
-  }, [value]);
-
-  const cameraPositionsRef = useRef({
-    isometric: 0,
-    side: 0,
-    closeSide: 0,
-    closeSideRight: 0,
-  });
-  const currentCameraMode = useRef('side');
+    handleLoadAudio(
+      'Internet Money, Don Toliver, Gunna & Nav  - Lemonade (Miraj Remix).mp3',
+    );
+  }, []);
 
   useEffect(() => {
     // Initialize MixerDeck instance
@@ -118,49 +108,102 @@ const App = () => {
       });
   };
 
-  const switchCameraValue = (mode: string) => {
-    if (currentCameraMode.current === mode) {
+  const switchCameraValue = async (
+    mode: keyof typeof uiState.camera.positions,
+  ) => {
+    const { positions } = uiState.camera;
+    const ISOMETRIC_POSITIONS = getDeck('deck1').camera?.ISOMETRIC_POSITIONS;
+
+    if (uiState.camera.currentMode === mode) {
       if (
-        cameraPositionsRef.current[
-          mode as keyof typeof cameraPositionsRef.current
-        ] >= 3
+        positions[mode] >=
+        Object.keys(ISOMETRIC_POSITIONS[mode]).length - 1
       ) {
-        cameraPositionsRef.current[
-          mode as keyof typeof cameraPositionsRef.current
-        ] = 0;
+        positions[mode] = 0;
       } else {
-        cameraPositionsRef.current[
-          mode as keyof typeof cameraPositionsRef.current
-        ] =
-          cameraPositionsRef.current[
-            mode as keyof typeof cameraPositionsRef.current
-          ] + 1;
+        positions[mode] = positions[mode] + 1;
       }
     } else {
-      currentCameraMode.current = mode;
+      uiState.camera.currentMode = mode;
     }
 
     // Corrected camera matrix call
-    getDeck('deck1')?.camera?.cameraMatrix(
+    await getDeck('deck1')?.camera?.cameraMatrix(
       mode as any, // Cast mode to any if CameraPositionMode type isn't directly available here
-      cameraPositionsRef.current[
-        mode as keyof typeof cameraPositionsRef.current
-      ],
+      positions[mode],
     );
+
+    const cameraZ = getDeck('deck1')?.camera?.position.z;
+    const normalizedCameraZ = cameraZ ? ((cameraZ - 3) / (40 - 3)) * 0.1 : 0;
+    handleChangeGain(normalizedCameraZ);
   };
 
-  const handleChangeTempo = (tempo: number) => {
+  const handleChangeTempo = useCallback((tempo: number) => {
     getDeck('deck1').changeTempo(tempo);
-  };
+  }, []);
 
   const handleGetTempo = () => {
     return getDeck('deck1').initialTempo;
   };
 
-  const handleChangeGain = (gain: number) => {
-    const adjustedValue = 1000 + gain * 8000; // Scale gain from 0 to 1 to range 1000 to 8000
-    getDeck('deck1')?.setColorFX(adjustedValue, gain * 15, gain * 0.2);
+  const handleChangeColorFX = (gain: number) => {
+    const adjustedValue = 1000 + gain * 7000; // Scale gain from 0 to 1 to range 1000 to 8000
+    getDeck('deck1')?.setColorFX(adjustedValue, gain * 15, gain * 0.1);
   };
+
+  const handleChangeBassGain = (gain: number) => {
+    getDeck('deck1')?.setBassGain(gain);
+  };
+
+  const handleChangeMidGain = (gain: number) => {
+    getDeck('deck1')?.setMidGain(gain);
+  };
+
+  const handleChangeTrebleGain = (gain: number) => {
+    getDeck('deck1')?.setTrebleGain(gain);
+  };
+
+  /*   useFilter({
+    key: 't',
+    min: 90,
+    max: 170,
+    initialValue: 140,
+    changeOnKeyUp: true,
+    sensitivity: 0.1,
+    onChange: handleChangeTempo,
+  }); */
+
+  useFilter({
+    key: 'q',
+    name: 'bassGain',
+    min: -20,
+    max: 15,
+    onChange: handleChangeBassGain,
+  });
+
+  useFilter({
+    key: 'w',
+    name: 'midGain',
+    min: -20,
+    max: 15,
+    onChange: handleChangeMidGain,
+  });
+
+  useFilter({
+    key: 'e',
+    name: 'trebleGain',
+    min: -20,
+    max: 15,
+    onChange: handleChangeTrebleGain,
+  });
+
+  useFilter({
+    name: 'colorFX',
+    key: 'r',
+    min: -1,
+    max: 0.3,
+    onChange: handleChangeColorFX,
+  });
 
   return (
     <div className="app">
@@ -181,8 +224,8 @@ const App = () => {
         </VerticalLoading>
       </DroppableArea>
 
-      {/* Conditionally render bottom bar only when a track is loaded (currentUrl is set) */}
-      {getDeck('deck1') && getDeck('deck1')?.currentStatus === 'loaded' && (
+      {/* Conditionally render bottom bar only when a track is loaded */}
+      {getDeck('deck1') && (
         <div className="app__bottom-bar">
           <TrackCover fileName={getDeck('deck1')?.currentFileName} />
           <div className="miniature-timeline-container">
@@ -193,12 +236,14 @@ const App = () => {
             getTempo={handleGetTempo}
             changeTempo={handleChangeTempo}
           />
-          <GainFilter min={0} max={0.5} onChange={handleChangeGain} />
-          {/*           <button onClick={() => getDeck('deck1')?.setColorFX(1000, 10, 0.5)}>
-            Set Color FX
-          </button> */}
+          {/* Ensure this section is not affected by useFilter */}
+          <FilterComponent name="bassGain" initialValue={0} />
+          <FilterComponent name="midGain" initialValue={0} />
+          <FilterComponent name="trebleGain" initialValue={0} />
+          <FilterComponent name="colorFX" initialValue={0} />
         </div>
       )}
+
       <Explorer />
     </div>
   );

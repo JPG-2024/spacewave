@@ -5,6 +5,31 @@ import {
   // WaveformDataResponse, // TODO: Export this type from waveformTracker.ts
 } from '@/utils/waveformTracker';
 
+const ISOMETRIC_POSITIONS = {
+  isometric: [
+    [5, 5, 5],
+    [-5, 5, 5],
+    [-5, 5, -5],
+    [5, 5, -5],
+  ],
+  side: [
+    [0, 0, 4],
+    [0, 0, 10],
+    [0, 0, 40],
+    [0, 0, 90],
+  ],
+  closeSide: [
+    [6, 0, 3],
+    [20, 0, 4],
+    [6, 0, 3],
+    [20, 0, 4],
+  ],
+  closeSideRight: [
+    [-6, 0, 3],
+    [-90, 90, 90],
+  ],
+};
+
 // Define colors using THREE.Color for consistency
 // Define colors using THREE.Color for consistency
 const HARMONIC_COLOR = new THREE.Color(0x3db8ff);
@@ -34,6 +59,7 @@ type CameraPositionMode = 'isometric' | 'side' | 'closeSide' | 'closeSideRight';
 // Use type intersection to combine PerspectiveCamera with our custom method
 export type CameraControls = THREE.PerspectiveCamera & {
   cameraMatrix: (mode: CameraPositionMode, value: number) => void;
+  ISOMETRIC_POSITIONS: typeof ISOMETRIC_POSITIONS;
 };
 
 interface TimelineGeneratorResult {
@@ -84,7 +110,7 @@ export class TimelineGenerator {
   private readonly scaleLerpFactor: number = 0.1; // Adjust for animation speed (0-1)
 
   // Configuration for camera positions
-  private readonly ISOMETRIC_POSITIONS = {
+  public readonly ISOMETRIC_POSITIONS = {
     isometric: [
       [5, 5, 5],
       [-5, 5, 5],
@@ -105,9 +131,7 @@ export class TimelineGenerator {
     ],
     closeSideRight: [
       [-6, 0, 3],
-      [0, 10, 4],
-      [-6, 0, 3],
-      [-20, 0, 4],
+      [-150, 20, 60],
     ],
   };
 
@@ -174,24 +198,6 @@ export class TimelineGenerator {
     if (!this.scene) {
       this.scene = new THREE.Scene();
       this.scene.name = 'MainScene';
-
-      // Add a directional light to simulate a far sun
-      const sunLight = new THREE.DirectionalLight(0xffffff, 1);
-      sunLight.position.set(5, 5, 5); // Position the light high and to the right
-      sunLight.castShadow = true; // Enable shadow casting
-      sunLight.shadow.mapSize.width = 2048; // High quality shadows
-      sunLight.shadow.mapSize.height = 2048;
-      sunLight.shadow.camera.near = 0.5;
-      sunLight.shadow.camera.far = 500;
-      sunLight.shadow.camera.left = -100;
-      sunLight.shadow.camera.right = 100;
-      sunLight.shadow.camera.top = 100;
-      sunLight.shadow.camera.bottom = -100;
-      this.scene.add(sunLight);
-
-      // Add ambient light for overall scene illumination
-      const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
-      this.scene.add(ambientLight);
     } else {
       this.cleanupScene(); // Clear previous objects if reusing
     }
@@ -280,6 +286,7 @@ export class TimelineGenerator {
       this.camera.lookAt(0, 0, 0);
       // Add the custom cameraMatrix method to this instance
       this.camera.cameraMatrix = this.cameraMatrix.bind(this);
+      this.camera.ISOMETRIC_POSITIONS = this.ISOMETRIC_POSITIONS;
     } else {
       // Update aspect ratio if reusing
       this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -597,7 +604,10 @@ export class TimelineGenerator {
   }
 
   // --- Camera Animation ---
-  private cameraMatrix(mode: CameraPositionMode, value: number): void {
+  private async cameraMatrix(
+    mode: CameraPositionMode,
+    value: number,
+  ): Promise<void> {
     if (!this.camera) return;
 
     const targetPositionArray = this.ISOMETRIC_POSITIONS[mode]?.[value];
@@ -609,30 +619,35 @@ export class TimelineGenerator {
     const targetPosition = new THREE.Vector3(...targetPositionArray);
     const startPosition = this.camera.position.clone();
     const duration = 250; // Animation duration in milliseconds
-    let startTime = 0; // Will be set in the animation loop
 
-    const animate = (timestamp: number) => {
-      if (startTime === 0) startTime = timestamp; // Initialize start time
-      const elapsed = timestamp - startTime;
-      const progress = Math.min(elapsed / duration, 1); // Clamp progress between 0 and 1
+    // Return a Promise that resolves when the animation is complete
+    await new Promise<void>(resolve => {
+      let startTime = 0; // Will be set in the animation loop
 
-      // Use slerp for smoother rotation/position interpolation if needed,
-      // but lerp is often sufficient for position.
-      this.camera!.position.lerpVectors(
-        startPosition,
-        targetPosition,
-        progress,
-      );
-      this.camera!.lookAt(0, 0, 0); // Keep looking at the center
+      const animate = (timestamp: number) => {
+        if (startTime === 0) startTime = timestamp; // Initialize start time
+        const elapsed = timestamp - startTime;
+        const progress = Math.min(elapsed / duration, 1); // Clamp progress between 0 and 1
 
-      if (progress < 1) {
-        // Continue animation if not finished
-        requestAnimationFrame(animate);
-      }
-      // No need to explicitly stop, it finishes when progress reaches 1
-    };
+        // Interpolate position
+        this.camera!.position.lerpVectors(
+          startPosition,
+          targetPosition,
+          progress,
+        );
+        this.camera!.lookAt(0, 0, 0); // Keep looking at the center
 
-    requestAnimationFrame(animate); // Start the animation loop
+        if (progress < 1) {
+          // Continue animation if not finished
+          requestAnimationFrame(animate);
+        } else {
+          // Resolve the Promise when the animation is complete
+          resolve();
+        }
+      };
+
+      requestAnimationFrame(animate); // Start the animation loop
+    });
   }
 
   // --- Event Listeners ---

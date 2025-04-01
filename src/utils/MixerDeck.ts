@@ -1,10 +1,9 @@
-import * as THREE from 'three';
 import {
-  TimelineGenerator,
-  PlaybackControls,
   CameraControls,
-  // TimelineGeneratorResult // Not directly used here, but controls are
+  PlaybackControls,
+  TimelineGenerator,
 } from '@/utils/generateTimeline'; // Assuming path is correct
+import * as THREE from 'three';
 
 // --- Interfaces ---
 
@@ -40,6 +39,12 @@ export class MixerDeck {
   private state: DeckState;
   private readonly deckId: string;
   private readonly containerId: string; // DOM element ID for the timeline visualization
+  private colorFXFrequency: number = 1000;
+  private colorFXResonance: number = 0.1;
+  private colorFXMix: number = 0;
+  private bassGain: number = 0;
+  private midGain: number = 0;
+  private trebleGain: number = 0;
 
   constructor(deckId: string, containerId: string) {
     this.deckId = deckId;
@@ -201,16 +206,16 @@ export class MixerDeck {
       const bass = this.state.audioContext.createBiquadFilter();
       bass.type = 'lowshelf';
       bass.frequency.value = 250;
-      bass.gain.value = 0;
+      bass.gain.value = this.bassGain;
       const mid = this.state.audioContext.createBiquadFilter();
       mid.type = 'peaking';
       mid.frequency.value = 1000;
       mid.Q.value = 1;
-      mid.gain.value = 0;
+      mid.gain.value = this.midGain;
       const treble = this.state.audioContext.createBiquadFilter();
       treble.type = 'highshelf';
       treble.frequency.value = 4000;
-      treble.gain.value = 0;
+      treble.gain.value = this.trebleGain;
 
       // Store filters in state
       this.state.bassFilter = bass;
@@ -220,9 +225,14 @@ export class MixerDeck {
       // Create Color FX Filter
       const colorFX = this.state.audioContext.createBiquadFilter();
       colorFX.type = 'bandpass';
-      colorFX.frequency.value = 1000;
-      colorFX.Q.value = 0.1; // Resonancia mínima inicial
-      colorFX.gain.value = -100; // -100dB = efectivamente sin efecto
+      colorFX.frequency.value = this.colorFXFrequency;
+      colorFX.Q.value = this.colorFXResonance;
+      // Convierte el mix a ganancia (dB)
+      // 0 = -Infinity dB (silencio total)
+      // 0.5 = 0dB (señal original)
+      // 1.0 = +20dB (amplificación máxima)
+      const gainInDB = this.colorFXMix === 0 ? -100 : this.colorFXMix * 40 - 20;
+      colorFX.gain.value = gainInDB;
 
       this.state.colorFXFilter = colorFX;
 
@@ -295,6 +305,17 @@ export class MixerDeck {
       this.state.pausedAt += elapsed;
       // Clamp pausedAt to duration
       this.state.pausedAt = Math.min(this.state.pausedAt, this.state.duration);
+
+      // Save Color FX parameters
+      if (this.state.colorFXFilter) {
+        this.colorFXFrequency = this.state.colorFXFilter.frequency.value;
+        this.colorFXResonance = this.state.colorFXFilter.Q.value;
+        // Calculate mix from gain
+        this.colorFXMix =
+          this.state.colorFXFilter.gain.value === -100
+            ? 0
+            : (this.state.colorFXFilter.gain.value + 20) / 40;
+      }
 
       // Stop the source node
       // Setting onended to null prevents the end-of-track logic from firing on manual pause
@@ -698,8 +719,9 @@ export class MixerDeck {
 
   public setBassGain(gain: number): void {
     if (this.state.bassFilter && this.state.audioContext) {
+      this.bassGain = gain;
       this.state.bassFilter.gain.setValueAtTime(
-        gain,
+        this.bassGain,
         this.state.audioContext.currentTime,
       );
     }
@@ -707,8 +729,9 @@ export class MixerDeck {
 
   public setMidGain(gain: number): void {
     if (this.state.midFilter && this.state.audioContext) {
+      this.midGain = gain;
       this.state.midFilter.gain.setValueAtTime(
-        gain,
+        this.midGain,
         this.state.audioContext.currentTime,
       );
     }
@@ -716,8 +739,9 @@ export class MixerDeck {
 
   public setTrebleGain(gain: number): void {
     if (this.state.trebleFilter && this.state.audioContext) {
+      this.trebleGain = gain;
       this.state.trebleFilter.gain.setValueAtTime(
-        gain,
+        this.trebleGain,
         this.state.audioContext.currentTime,
       );
     }
@@ -743,6 +767,11 @@ export class MixerDeck {
 
       // Mix range: 0.0 - 1.0 (dry to wet)
       const safeMix = Math.max(0, Math.min(1, mix));
+
+      // Update class properties
+      this.colorFXFrequency = safeFreq;
+      this.colorFXResonance = safeQ;
+      this.colorFXMix = safeMix;
 
       // Aplica los cambios al filtro
       this.state.colorFXFilter.frequency.setValueAtTime(safeFreq, now);

@@ -1,0 +1,27 @@
+.filter-knob {
+  display: flex;
+  gap: 10px;
+  width: 50px;
+  height: 50px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  user-select: none;
+  border: 3px solid var(--primary-color-dark);
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  margin: 10px auto;
+  transition: border 0.1s ease-out;
+}
+
+.filter-knob--active {
+  background: transparent;
+  border: 3px solid var(--primary-color-bright);
+  transition: border 0.1s infinite ease-in;
+
+  box-shadow: 0 0px 10px var(--primary-color-bright);
+  animation: box-shadow 0.5s infinite alternate;
+}
