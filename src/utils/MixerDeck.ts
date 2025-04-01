@@ -702,8 +702,6 @@ export class MixerDeck {
         gain,
         this.state.audioContext.currentTime,
       );
-      //TODO: remove this log
-      console.log(`Deck ${this.deckId}: Bass gain set to ${gain}`);
     }
   }
 
@@ -713,7 +711,6 @@ export class MixerDeck {
         gain,
         this.state.audioContext.currentTime,
       );
-      console.log(`Deck ${this.deckId}: Mid gain set to ${gain}`);
     }
   }
 
@@ -723,7 +720,6 @@ export class MixerDeck {
         gain,
         this.state.audioContext.currentTime,
       );
-      console.log(`Deck ${this.deckId}: Treble gain set to ${gain}`);
     }
   }
 
@@ -758,10 +754,6 @@ export class MixerDeck {
       // 1.0 = +20dB (amplificación máxima)
       const gainInDB = safeMix === 0 ? -100 : safeMix * 40 - 20;
       this.state.colorFXFilter.gain.setValueAtTime(gainInDB, now);
-
-      console.log(
-        `Deck ${this.deckId}: Color FX - Freq: ${safeFreq}Hz, Q: ${safeQ}, Mix: ${safeMix}, Gain: ${gainInDB}dB`,
-      );
     }
   }
 }

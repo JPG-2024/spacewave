@@ -9,13 +9,22 @@ import { useMixerDecks } from '@/contexts/MixerDecksProvider';
 import TrackCover from '@/components/TrackCover/TrackCover';
 import TempoKnob from './components/TempoKnob/TempoKnob';
 import GainFilter from './components/GainFIlter/GainFIlter';
+import { useFilter } from './hooks/useFilter';
 
 const App = () => {
   const { addDeck, getDeck } = useMixerDecks();
-
   const [isLoading, setIsLoading] = useState(false);
-
   const webGLRef = useRef<HTMLDivElement | null>(null);
+
+  const value = useFilter({
+    key: 'q',
+    min: 0,
+    max: 0.3,
+  });
+
+  useEffect(() => {
+    handleChangeGain(value);
+  }, [value]);
 
   const cameraPositionsRef = useRef({
     isometric: 0,
