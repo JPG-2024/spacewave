@@ -8,6 +8,7 @@ import VerticalLoading from '@/components/VerticalLoading/VerticalLoading';
 import { useMixerDecks } from '@/contexts/MixerDecksProvider';
 import TrackCover from '@/components/TrackCover/TrackCover';
 import TempoKnob from './components/TempoKnob/TempoKnob';
+import GainFilter from './components/GainFIlter/GainFIlter';
 
 const App = () => {
   const { addDeck, getDeck } = useMixerDecks();
@@ -147,6 +148,11 @@ const App = () => {
     return getDeck('deck1').initialTempo;
   };
 
+  const handleChangeGain = (gain: number) => {
+    const adjustedValue = 1000 + gain * 8000; // Scale gain from 0 to 1 to range 1000 to 8000
+    getDeck('deck1')?.setColorFX(adjustedValue, gain * 15, gain * 0.2);
+  };
+
   return (
     <div className="app">
       <DroppableArea
@@ -178,9 +184,12 @@ const App = () => {
             getTempo={handleGetTempo}
             changeTempo={handleChangeTempo}
           />
+          <GainFilter min={0} max={0.5} onChange={handleChangeGain} />
+          {/*           <button onClick={() => getDeck('deck1')?.setColorFX(1000, 10, 0.5)}>
+            Set Color FX
+          </button> */}
         </div>
       )}
-
       <Explorer />
     </div>
   );

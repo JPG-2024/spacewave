@@ -28,6 +28,10 @@ export interface DeckState {
   timelineObject: THREE.Object3D | null; // Store timeline object if needed
   status: 'empty' | 'loading' | 'loaded' | 'playing' | 'paused' | 'error';
   error: string | null;
+  bassFilter: BiquadFilterNode | null;
+  midFilter: BiquadFilterNode | null;
+  trebleFilter: BiquadFilterNode | null;
+  colorFXFilter: BiquadFilterNode | null;
 }
 
 // --- MixerDeck Class ---
@@ -71,6 +75,10 @@ export class MixerDeck {
       timelineObject: null,
       status: 'empty',
       error: null,
+      bassFilter: null,
+      midFilter: null,
+      trebleFilter: null,
+      colorFXFilter: null,
     };
   }
 
@@ -189,7 +197,41 @@ export class MixerDeck {
       this.state.gainNode = this.state.audioContext.createGain();
       this.state.gainNode.gain.value = 1; // Set volume (can be adjusted later)
 
-      this.state.source.connect(this.state.gainNode);
+      // --- Create EQ Filters ---
+      const bass = this.state.audioContext.createBiquadFilter();
+      bass.type = 'lowshelf';
+      bass.frequency.value = 250;
+      bass.gain.value = 0;
+      const mid = this.state.audioContext.createBiquadFilter();
+      mid.type = 'peaking';
+      mid.frequency.value = 1000;
+      mid.Q.value = 1;
+      mid.gain.value = 0;
+      const treble = this.state.audioContext.createBiquadFilter();
+      treble.type = 'highshelf';
+      treble.frequency.value = 4000;
+      treble.gain.value = 0;
+
+      // Store filters in state
+      this.state.bassFilter = bass;
+      this.state.midFilter = mid;
+      this.state.trebleFilter = treble;
+
+      // Create Color FX Filter
+      const colorFX = this.state.audioContext.createBiquadFilter();
+      colorFX.type = 'bandpass';
+      colorFX.frequency.value = 1000;
+      colorFX.Q.value = 0.1; // Resonancia mínima inicial
+      colorFX.gain.value = -100; // -100dB = efectivamente sin efecto
+
+      this.state.colorFXFilter = colorFX;
+
+      // Connect audio chain: source -> bass -> mid -> treble -> colorFX -> gain -> destination
+      this.state.source.connect(bass);
+      bass.connect(mid);
+      mid.connect(treble);
+      treble.connect(colorFX);
+      colorFX.connect(this.state.gainNode);
       this.state.gainNode.connect(this.state.audioContext.destination);
 
       // Apply playback rate
@@ -490,6 +532,10 @@ export class MixerDeck {
     this.state.timelineObject = initial.timelineObject;
     this.state.status = 'empty'; // Set status to empty after reset
     this.state.error = initial.error;
+    this.state.bassFilter = initial.bassFilter;
+    this.state.midFilter = initial.midFilter;
+    this.state.trebleFilter = initial.trebleFilter;
+    this.state.colorFXFilter = initial.colorFXFilter;
   }
 
   /**
@@ -534,6 +580,38 @@ export class MixerDeck {
         /* Ignore errors if already disconnected */
       }
       this.state.gainNode = null;
+    }
+    if (this.state.bassFilter) {
+      try {
+        this.state.bassFilter.disconnect();
+      } catch (e) {
+        /* Ignore errors if already disconnected */
+      }
+      this.state.bassFilter = null;
+    }
+    if (this.state.midFilter) {
+      try {
+        this.state.midFilter.disconnect();
+      } catch (e) {
+        /* Ignore errors if already disconnected */
+      }
+      this.state.midFilter = null;
+    }
+    if (this.state.trebleFilter) {
+      try {
+        this.state.trebleFilter.disconnect();
+      } catch (e) {
+        /* Ignore errors if already disconnected */
+      }
+      this.state.trebleFilter = null;
+    }
+    if (this.state.colorFXFilter) {
+      try {
+        this.state.colorFXFilter.disconnect();
+      } catch (e) {
+        /* Ignore errors if already disconnected */
+      }
+      this.state.colorFXFilter = null;
     }
   }
 
@@ -614,5 +692,76 @@ export class MixerDeck {
    */
   public get timeline(): THREE.Object3D | null {
     return this.state.timelineObject;
+  }
+
+  // --- Public Methods for EQ Control ---
+
+  public setBassGain(gain: number): void {
+    if (this.state.bassFilter && this.state.audioContext) {
+      this.state.bassFilter.gain.setValueAtTime(
+        gain,
+        this.state.audioContext.currentTime,
+      );
+      //TODO: remove this log
+      console.log(`Deck ${this.deckId}: Bass gain set to ${gain}`);
+    }
+  }
+
+  public setMidGain(gain: number): void {
+    if (this.state.midFilter && this.state.audioContext) {
+      this.state.midFilter.gain.setValueAtTime(
+        gain,
+        this.state.audioContext.currentTime,
+      );
+      console.log(`Deck ${this.deckId}: Mid gain set to ${gain}`);
+    }
+  }
+
+  public setTrebleGain(gain: number): void {
+    if (this.state.trebleFilter && this.state.audioContext) {
+      this.state.trebleFilter.gain.setValueAtTime(
+        gain,
+        this.state.audioContext.currentTime,
+      );
+      console.log(`Deck ${this.deckId}: Treble gain set to ${gain}`);
+    }
+  }
+
+  // --- Public Methods for Color FX Control ---
+
+  /**
+   * Controls the Color FX filter parameters
+   * @param frequency - Frequency in Hz (range: 20Hz - 20000Hz)
+   * @param resonance - Q factor/resonance (range: 0.1 - 25.0)
+   * @param mix - Dry/Wet mix (range: 0.0 - 1.0)
+   */
+  public setColorFX(frequency: number, resonance: number, mix: number): void {
+    if (this.state.colorFXFilter && this.state.audioContext) {
+      const now = this.state.audioContext.currentTime;
+
+      // Frequency range: 20Hz - 20000Hz (full audible spectrum)
+      const safeFreq = Math.max(20, Math.min(20000, frequency));
+
+      // Resonance (Q) range: 0.1 - 25.0 (from subtle to extreme resonance)
+      const safeQ = Math.max(0.1, Math.min(25.0, resonance));
+
+      // Mix range: 0.0 - 1.0 (dry to wet)
+      const safeMix = Math.max(0, Math.min(1, mix));
+
+      // Aplica los cambios al filtro
+      this.state.colorFXFilter.frequency.setValueAtTime(safeFreq, now);
+      this.state.colorFXFilter.Q.setValueAtTime(safeQ, now);
+
+      // Convierte el mix a ganancia (dB)
+      // 0 = -Infinity dB (silencio total)
+      // 0.5 = 0dB (señal original)
+      // 1.0 = +20dB (amplificación máxima)
+      const gainInDB = safeMix === 0 ? -100 : safeMix * 40 - 20;
+      this.state.colorFXFilter.gain.setValueAtTime(gainInDB, now);
+
+      console.log(
+        `Deck ${this.deckId}: Color FX - Freq: ${safeFreq}Hz, Q: ${safeQ}, Mix: ${safeMix}, Gain: ${gainInDB}dB`,
+      );
+    }
   }
 }
