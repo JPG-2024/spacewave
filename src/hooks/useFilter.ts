@@ -22,8 +22,10 @@ export function useFilter({
   sensitivity = (max - min) / 1000,
   initialValue = 0,
   changeOnKeyUp = false,
+  thresholdStick = 20,
 }: UseFilterOptions) {
   const valueRef = useRef<number>(initialValue); // Valor inicial centrado entre min y max
+  const rotationValue = useRef<number>(0);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -46,14 +48,20 @@ export function useFilter({
         const delta = event.movementX * sensitivity; // Movimiento horizontal del puntero ajustado por sensibilidad
 
         valueRef.current = valueRef.current + delta;
-        console.log(valueRef.current, delta);
 
         let newValue = valueRef.current;
 
+        console.log(
+          Math.abs(newValue - initialValue),
+          sensitivity * thresholdStick,
+        );
+
         // Threshold logic
-        if (Math.abs(newValue - initialValue) < sensitivity) {
+        if (Math.abs(newValue - initialValue) < sensitivity * thresholdStick) {
           newValue = initialValue;
         }
+
+        rotationValue.current = rotationValue.current + delta;
 
         if (newValue < min) newValue = min;
         if (newValue > max) newValue = max;

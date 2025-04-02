@@ -155,8 +155,6 @@ const App = () => {
     return !['loading', 'empty'].includes(deck.currentStatus);
   };
 
-  console.log(isDeckReady());
-
   return (
     <div className="app">
       <DroppableArea
@@ -218,8 +216,8 @@ const App = () => {
             activateKey="t"
             initialValue={getDeck('deck1')?.initialTempo}
             type="tempo"
-            min={getDeck('deck1')?.initialTempo - 20}
-            max={getDeck('deck1')?.initialTempo + 20}
+            min={getDeck('deck1')?.initialTempo - 40}
+            max={getDeck('deck1')?.initialTempo + 40}
             deck={getDeck('deck1')}
             changeOnKeyUp={true}
             sensitivity={0.1}
