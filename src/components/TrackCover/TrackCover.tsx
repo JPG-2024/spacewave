@@ -25,6 +25,9 @@ const TrackCover: React.FC<TrackCoverProps> = ({
       className="track-cover"
       src={`${import.meta.env.VITE_API_URL}/${fileNameWithoutExtension}.webp`} // Construcción de la URL de la imagen
       alt={altText} // Texto alternativo
+      onError={e => {
+        (e.target as HTMLImageElement).src = '/favicon.png'; // Ruta de la imagen de fallback
+      }}
     />
   );
 };

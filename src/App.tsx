@@ -9,20 +9,11 @@ import uiState from '@/store/uiStore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import './App.styles.css';
 import TempoKnob from './components/TempoKnob/TempoKnob';
-import { useSnapshot } from 'valtio';
 
 const App = () => {
-  const uiStateSnap = useSnapshot(uiState);
   const { addDeck, getDeck } = useMixerDecks();
   const [isLoading, setIsLoading] = useState(false);
   const webGLRef = useRef<HTMLDivElement | null>(null);
-
-  //TODO: only for dev purpose
-  useEffect(() => {
-    handleLoadAudio(
-      'Internet Money, Don Toliver, Gunna & Nav  - Lemonade (Miraj Remix).mp3',
-    );
-  }, []);
 
   useEffect(() => {
     // Initialize MixerDeck instance
@@ -209,6 +200,7 @@ const App = () => {
             activateKey="r"
             initialValue={0}
             type="colorFX"
+            sensitivity={0.001}
             deck={getDeck('deck1')}
           />
           <FilterComponent

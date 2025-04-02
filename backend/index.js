@@ -4,7 +4,12 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import sqlite3 from 'sqlite3';
+import { fileURLToPath } from 'url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+console.log(__dirname);
 const app = express();
 
 // Enable CORS for all routes
@@ -16,7 +21,13 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-const AUDIO_FOLDER = '/Users/juangargiulo/tracks/downloads';
+const AUDIO_FOLDER = path.join(__dirname, '..', 'mp3s');
+
+// Ensure downloads directory exists
+if (!fs.existsSync(AUDIO_FOLDER)) {
+  fs.mkdirSync(AUDIO_FOLDER, { recursive: true });
+}
+
 app.use(express.json());
 app.use(express.static(AUDIO_FOLDER));
 
@@ -54,12 +65,14 @@ app.get('/files', (req, res) => {
       if (file.endsWith('.mp3')) {
         const baseName = path.basename(file, '.mp3');
         const thumbnail = `${baseName}.webp`;
-        if (files.includes(thumbnail)) {
-          acc.push({ mp3: file, thumbnail });
-        }
+        acc.push({
+          mp3: file,
+          thumbnail: files.includes(thumbnail) ? thumbnail : null, // Include null if thumbnail doesn't exist
+        });
       }
       return acc;
     }, []);
+
 
     res.json(filePairs.reverse());
   });
