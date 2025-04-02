@@ -68,11 +68,15 @@ const DraggableItem = ({ text, children }) => {
 };
 
 const FileItem = ({ file, handleDeleteFile }) => {
+  const thumbnail = file.thumbnail
+    ? `http://localhost:3000/${file.thumbnail}`
+    : '/favicon.png';
+
   return (
     <DraggableItem text={file.mp3}>
       <div className="FileItem__container">
         {/* <MiniatureTimeline url={file.mp3} /> */}
-        <img src={`http://localhost:3000/${file.thumbnail}`} alt="thumbnail" />
+        <img src={thumbnail} alt="thumbnail" />
         <p>{file.mp3}</p>
         <button
           className="FileItem__delete-button"
