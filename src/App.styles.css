@@ -16,7 +16,7 @@
   position: absolute;
   align-items: center;
   width: 100%;
-  bottom: 0;
+  bottom: 10px;
   filter: blur(0.5px);
   height: 70px;
   left: 0;

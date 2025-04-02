@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import uiState from '@/store/uiStore';
 
 interface UseFilterOptions {
-  key: string; // Tecla que debe mantenerse presionada
+  activateKey: string; // Tecla que debe mantenerse presionada
   name: keyof typeof uiState.filters;
   onChange?: (value: number) => void; // Función a llamar con el valor actualizado
   min: number; // Valor mínimo permitido
@@ -14,7 +14,7 @@ interface UseFilterOptions {
 }
 
 export function useFilter({
-  key,
+  activateKey,
   name,
   onChange,
   min,
@@ -27,13 +27,13 @@ export function useFilter({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === key) {
+      if (event.key === activateKey) {
         uiState.filters[name].isActive = true;
       }
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
-      if (event.key === key) {
+      if (event.key === activateKey) {
         uiState.filters[name].isActive = false;
         onChange && changeOnKeyUp && onChange(valueRef.current);
       }
@@ -69,7 +69,7 @@ export function useFilter({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('mousemove', handleMouseMove);
     };
-  }, [key, onChange, min, max, sensitivity]);
+  }, [activateKey, onChange, min, max, sensitivity]);
 
   return valueRef.current;
 }

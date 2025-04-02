@@ -15,6 +15,7 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   margin: 10px auto;
   transition: border 0.1s ease-out;
+  position: relative;
 }
 
 .filter-knob--active {
@@ -24,4 +25,45 @@
 
   box-shadow: 0 0px 10px var(--primary-color-bright);
   animation: box-shadow 0.5s infinite alternate;
+}
+
+@keyframes box-shadow {
+  from {
+    box-shadow: 0 0px 5px var(--primary-color-bright);
+  }
+  to {
+    box-shadow: 0 0px 15px var(--primary-color-bright);
+  }
+}
+
+.filter-indicator {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background-color: var(--primary-color-bright);
+  border-radius: 50%;
+
+  top: 50%; /* Opcional: si deseas que quede completamente centrado */
+  left: 50%; /* Opcional: si deseas que quede completamente centrado */
+  transform: translate(-50%, -50%) rotate(0deg); /* Ajusta la traducción según tu preferencia */
+  transform-origin: 50% 50%; /* Cambia el punto de giro al centro */
+}
+
+.filter-knob--active .filter-indicator {
+  box-shadow: 0 0 5px var(--primary-color-bright);
+}
+
+.filter-component {
+  transition: transform 0.1s ease-out;
+}
+
+.filter-component.active {
+  transition: none; /* Desactivar la transición cuando está activo para una respuesta inmediata */
+}
+
+.filter-label {
+  text-align: center;
+  margin-bottom: 10px;
+  font-size: 0.9em;
+  color: #ffffff;
 }
