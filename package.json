@@ -10,6 +10,7 @@
     "backend": "node ./backend/index.js",
     "frontend": "npm run dev",
     "preview": "vite preview",
+    "install:all": "concurrently \"npm install\" \"npm install --prefix backend\"",
     "start": "npm-run-all --parallel backend dev"
   },
   "dependencies": {
