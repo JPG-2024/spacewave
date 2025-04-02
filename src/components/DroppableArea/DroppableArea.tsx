@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import './DroppableArea.styles.css';
 
 interface DroppableAreaProps {
   id?: string;
@@ -38,17 +39,13 @@ export const DroppableArea: React.FC<DroppableAreaProps> = ({
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
-      className={`relative w-full h-full ${
-        isDraggingOver ? 'border-1 border-green-500' : ''
-      }`}
+      className={`droppable ${isDraggingOver ? 'droppable--dragging' : ''}`}
     >
       {!isLoaded && (
-        <div className="absolute inset-0 flex bg-gray-900 items-center justify-center opacity-90 z-10">
-          {notContentMessage}
-        </div>
+        <div className="droppable__overlay">{notContentMessage}</div>
       )}
 
-      <div>{children}</div>
+      <div className="droppable__content">{children}</div>
     </div>
   );
 };
