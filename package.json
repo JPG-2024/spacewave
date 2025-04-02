@@ -1,7 +1,7 @@
 {
-  "name": "dj3d",
+  "name": "space-dj",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,10 +13,8 @@
     "start": "npm-run-all --parallel backend dev"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.0.14",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwindcss": "^4.0.14",
     "three": "^0.174.0",
     "valtio": "^2.1.4",
     "vite-tsconfig-paths": "^5.1.4"
