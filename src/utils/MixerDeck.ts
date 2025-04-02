@@ -93,7 +93,7 @@ export class MixerDeck {
    * Loads audio from a URL, analyzes it, and prepares the deck for playback.
    * @param fileName - The URL of the audio file.
    */
-  public async loadAudio(fileName: string): Promise<boolean> {
+  public async loadAudio(fileName: string): Promise<{ tempo: number } | null> {
     console.log(`Deck ${this.deckId}: Loading audio from ${fileName}`);
     this.reset(); // Reset state before loading new audio
     this.state.status = 'loading';
@@ -102,7 +102,7 @@ export class MixerDeck {
       console.error(`Deck ${this.deckId}: AudioContext is not available.`);
       this.state.status = 'error';
       this.state.error = 'AudioContext not available.';
-      return false;
+      return null;
     }
     // Ensure AudioContext is running (required after user interaction)
     if (this.state.audioContext.state === 'suspended') {
@@ -115,7 +115,7 @@ export class MixerDeck {
         );
         this.state.status = 'error';
         this.state.error = 'Failed to resume AudioContext.';
-        return false;
+        return null;
       }
     }
 
@@ -156,7 +156,7 @@ export class MixerDeck {
       console.log(
         `Deck ${this.deckId}: Audio loaded and timeline initialized. Tempo: ${tempo}`,
       );
-      return true;
+      return { tempo };
     } catch (error: any) {
       console.error(`Deck ${this.deckId}: Error loading audio:`, error);
       this.state.status = 'error';

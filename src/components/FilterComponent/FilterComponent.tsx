@@ -14,8 +14,9 @@ interface FilterComponentProps {
   changeOnKeyUp?: boolean;
   thresholdStick?: number;
   handleReset?: () => void;
-  type: 'bassGain' | 'midGain' | 'trebleGain' | 'colorFX';
+  type: 'bassGain' | 'midGain' | 'trebleGain' | 'colorFX' | 'tempo';
   deck: any; // Idealmente deberíamos tipar esto correctamente con el tipo de deck
+  showReset?: boolean;
 }
 
 const FilterComponent: React.FC<FilterComponentProps> = ({
@@ -27,9 +28,9 @@ const FilterComponent: React.FC<FilterComponentProps> = ({
   initialValue = 0,
   changeOnKeyUp = false,
   thresholdStick,
-  handleReset,
   type,
   deck,
+  showReset = true,
 }) => {
   const handleChange = (value: number) => {
     switch (type) {
@@ -46,7 +47,16 @@ const FilterComponent: React.FC<FilterComponentProps> = ({
         const adjustedValue = 1000 + value * 7000;
         deck?.setColorFX(adjustedValue, value * 15, value * 0.1);
         break;
+      case 'tempo':
+        deck?.changeTempo(value);
+        break;
     }
+  };
+
+  const handleReset = () => {
+    if (!showReset) return;
+    uiState.filters[name].value = initialValue;
+    handleChange(initialValue);
   };
 
   useFilter({
@@ -66,6 +76,8 @@ const FilterComponent: React.FC<FilterComponentProps> = ({
   const background =
     Math.abs(value - initialValue) > threshold ? '#f882a050' : 'transparent';
 
+  const rotateValue = initialValue ? value / initialValue : value;
+
   return (
     <div>
       <div
@@ -74,16 +86,17 @@ const FilterComponent: React.FC<FilterComponentProps> = ({
           background,
           transform: isActive ? 'scale(1.1)' : 'scale(1)',
           transition: 'transform 0.1s ease-in-out',
+          cursor: showReset ? 'pointer' : 'default',
         }}
+        onClick={handleReset}
       >
         <div
           className="filter-indicator"
           style={{
-            transform: `translateX(-50%) translateY(-50%) rotate(${value * 120}deg) translateY(-23px)`,
+            transform: `translateX(-50%) translateY(-50%) rotate(${rotateValue * 120}deg) translateY(-23px)`,
           }}
         />
         <span className="filter-knob__tempo">{value.toFixed(2)}</span>
-        {handleReset && <span className="filter-knob__reset">R</span>}
       </div>
       {isActive && <div className="filter-label">{name}</div>}
     </div>

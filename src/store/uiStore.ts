@@ -12,7 +12,12 @@ interface FiltersState {
   isActive: boolean;
 }
 
-export type FiltersNames = 'bassGain' | 'midGain' | 'trebleGain' | 'colorFX';
+export type FiltersNames =
+  | 'bassGain'
+  | 'midGain'
+  | 'trebleGain'
+  | 'colorFX'
+  | 'tempo';
 
 export type Filters = {
   [K in FiltersNames]: FiltersState;
@@ -38,6 +43,7 @@ const uiState = proxy<UIState>({
     midGain: { value: 0, isActive: false },
     trebleGain: { value: 0, isActive: false },
     colorFX: { value: 0, isActive: false },
+    tempo: { value: 0, isActive: false },
   },
 });
 

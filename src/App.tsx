@@ -1,16 +1,18 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
-import './App.styles.css';
-import { Explorer } from '@/components/Explorer/Explorer';
 import { DroppableArea } from '@/components/DroppableArea/DroppableArea';
-import { MiniatureTimeline } from '@/components/MiniatureTimeline/MiniatureTimeline';
-import VerticalLoading from '@/components/VerticalLoading/VerticalLoading';
+import { Explorer } from '@/components/Explorer/Explorer';
 import FilterComponent from '@/components/FilterComponent/FilterComponent';
-import { useMixerDecks } from '@/contexts/MixerDecksProvider';
+import { MiniatureTimeline } from '@/components/MiniatureTimeline/MiniatureTimeline';
 import TrackCover from '@/components/TrackCover/TrackCover';
-import TempoKnob from './components/TempoKnob/TempoKnob';
+import VerticalLoading from '@/components/VerticalLoading/VerticalLoading';
+import { useMixerDecks } from '@/contexts/MixerDecksProvider';
 import uiState from '@/store/uiStore';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import './App.styles.css';
+import TempoKnob from './components/TempoKnob/TempoKnob';
+import { useSnapshot } from 'valtio';
 
 const App = () => {
+  const uiStateSnap = useSnapshot(uiState);
   const { addDeck, getDeck } = useMixerDecks();
   const [isLoading, setIsLoading] = useState(false);
   const webGLRef = useRef<HTMLDivElement | null>(null);
@@ -94,16 +96,20 @@ const App = () => {
     };
   }, []);
 
-  const handleLoadAudio = (droppedText: string, id?: string) => {
+  const handleLoadAudio = async (droppedText: string, id?: string) => {
     setIsLoading(true);
 
     getDeck('deck1')?.pause(); // Pause existing playback if any
 
-    getDeck('deck1')
+    const result = await getDeck('deck1')
       ?.loadAudio(droppedText)
       .finally(() => {
         setIsLoading(false);
       });
+
+    if (result) {
+      uiState.filters.tempo.value = result.tempo;
+    }
   };
 
   const switchCameraValue = async (
@@ -143,6 +149,14 @@ const App = () => {
     return deck?.initialTempo ?? 0;
   };
 
+  const isDeckReady = () => {
+    const deck = getDeck('deck1');
+    if (!deck) return false;
+    return !['loading', 'empty'].includes(deck.currentStatus);
+  };
+
+  console.log(isDeckReady());
+
   return (
     <div className="app">
       <DroppableArea
@@ -161,7 +175,7 @@ const App = () => {
         </VerticalLoading>
       </DroppableArea>
 
-      {getDeck('deck1') && (
+      {isDeckReady() && (
         <div className="app__bottom-bar">
           <TrackCover fileName={getDeck('deck1')?.currentFileName} />
           <div className="miniature-timeline-container">
@@ -198,6 +212,18 @@ const App = () => {
             initialValue={0}
             type="colorFX"
             deck={getDeck('deck1')}
+          />
+          <FilterComponent
+            name="tempo"
+            activateKey="t"
+            initialValue={getDeck('deck1')?.initialTempo}
+            type="tempo"
+            min={getDeck('deck1')?.initialTempo - 20}
+            max={getDeck('deck1')?.initialTempo + 20}
+            deck={getDeck('deck1')}
+            changeOnKeyUp={true}
+            sensitivity={0.1}
+            showReset={true}
           />
         </div>
       )}

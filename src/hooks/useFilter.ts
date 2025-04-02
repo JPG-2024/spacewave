@@ -19,16 +19,17 @@ export function useFilter({
   onChange,
   min,
   max,
-  sensitivity = (max - min) / 2000,
+  sensitivity = (max - min) / 1000,
   initialValue = 0,
   changeOnKeyUp = false,
 }: UseFilterOptions) {
-  const valueRef = useRef<number>((initialValue || min + max) / 2); // Valor inicial centrado entre min y max
+  const valueRef = useRef<number>(initialValue); // Valor inicial centrado entre min y max
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === activateKey) {
         uiState.filters[name].isActive = true;
+        document.body.style.cursor = 'grabbing';
       }
     };
 
@@ -36,17 +37,21 @@ export function useFilter({
       if (event.key === activateKey) {
         uiState.filters[name].isActive = false;
         onChange && changeOnKeyUp && onChange(valueRef.current);
+        document.body.style.cursor = 'default';
       }
     };
 
     const handleMouseMove = (event: MouseEvent) => {
       if (uiState.filters[name].isActive) {
         const delta = event.movementX * sensitivity; // Movimiento horizontal del puntero ajustado por sensibilidad
+
         valueRef.current = valueRef.current + delta;
+        console.log(valueRef.current, delta);
+
         let newValue = valueRef.current;
 
         // Threshold logic
-        if (Math.abs(newValue - initialValue) < sensitivity * 20) {
+        if (Math.abs(newValue - initialValue) < sensitivity) {
           newValue = initialValue;
         }
 
