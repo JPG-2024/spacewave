@@ -1,5 +1,6 @@
 .miniature-timeline {
   position: relative;
+  padding-bottom: 10px;
 }
 
 .miniature-timeline__svg {
@@ -8,7 +9,7 @@
   width: fit-content;
   cursor: n-resize;
   border-radius: 1px;
-  opacity: 0.8;
+  opacity: 1;
 }
 
 .miniature-timeline__progress-line {
@@ -17,5 +18,12 @@
   left: 0;
   width: 0.5px;
   height: 100%;
-  background-color: var(--primary-color);
+  background: var(--primary-color);
+  /* animation: blinker 1s linear infinite; */
+}
+
+@keyframes blinker {
+  50% {
+    opacity: 0;
+  }
 }
