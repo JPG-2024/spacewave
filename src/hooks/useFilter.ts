@@ -22,7 +22,7 @@ export function useFilter({
   sensitivity = (max - min) / 1000,
   initialValue = 0,
   changeOnKeyUp = false,
-  thresholdStick = 20,
+  thresholdStick = 10,
 }: UseFilterOptions) {
   const valueRef = useRef<number>(initialValue); // Valor inicial centrado entre min y max
   const rotationValue = useRef<number>(0);
