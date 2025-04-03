@@ -49,7 +49,7 @@ export const MiniatureTimeline: React.FC<MiniatureTimelineProps> = ({
       });
 
       const waveformSVG = generateWaveformSVG(waveformData.waveformData, {
-        color: '#692536',
+        color: '#ff4271',
         width,
         height: height,
         amplification: 1,

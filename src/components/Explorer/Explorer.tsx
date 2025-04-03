@@ -139,7 +139,7 @@ export const Explorer = () => {
   return (
     <>
       <div className="explorer__icon" onMouseEnter={() => setIsVisible(true)}>
-        Files
+        Tracks
       </div>
       <div
         className={`explorer ${visible ? 'explorer--visible' : ''}`}

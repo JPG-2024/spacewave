@@ -8,7 +8,6 @@ import { useMixerDecks } from '@/contexts/MixerDecksProvider';
 import uiState from '@/store/uiStore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import './App.styles.css';
-import TempoKnob from './components/TempoKnob/TempoKnob';
 
 const App = () => {
   const { addDeck, getDeck } = useMixerDecks();
@@ -170,10 +169,7 @@ const App = () => {
           <div className="miniature-timeline-container">
             <MiniatureTimeline deckId="deck1" />
           </div>
-          <TempoKnob
-            getTempo={handleGetTempo}
-            changeTempo={handleChangeTempo}
-          />
+
           <FilterComponent
             name="bassGain"
             activateKey="q"
@@ -200,7 +196,7 @@ const App = () => {
             activateKey="r"
             initialValue={0}
             type="colorFX"
-            sensitivity={0.001}
+            sensitivity={0.0005}
             deck={getDeck('deck1')}
           />
           <FilterComponent

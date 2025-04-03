@@ -158,6 +158,7 @@ export class TimelineGenerator {
     // Fetch waveform data first
     this.waveformData = await generateWaveformData({
       audioBuffer: this.audioBuffer,
+      pixelsPerSecond: 90,
     });
 
     // Setup Three.js environment

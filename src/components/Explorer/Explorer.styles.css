@@ -27,10 +27,12 @@
   bottom: 30px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: var(--primary-color);
+  background-color: transparent;
   z-index: 20;
   padding: 0.2rem;
   border-radius: 5px;
+  border: 1px solid var(--primary-color);
+  padding: 5px;
   opacity: 0.5;
   box-sizing: border-box;
 }
