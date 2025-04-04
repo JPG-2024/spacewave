@@ -87,24 +87,24 @@ export class TimelineGenerator {
   private camera: CameraControls | null = null;
   private renderer: THREE.WebGLRenderer | null = null;
   private animationFrameId: number | null = null;
-  private timelineGroup: THREE.Object3D | null = null; // Group for waveform and beats
-  private starFieldGroup: THREE.Group | null = null; // Group for the star field
-  private centerMarker: THREE.Mesh | null = null; // Separate marker
+  private timelineGroup: THREE.Object3D | null = null;
+  private starFieldGroup: THREE.Group | null = null;
+  private centerMarker: THREE.Mesh | null = null;
   private container: HTMLElement | null = null;
 
   // Audio related properties
   private audioContext: AudioContext;
   private audioBuffer: AudioBuffer;
   private trackDuration: number;
-  private waveformData!: WaveformDataResponseType; // Definite assignment in initialize
+  private waveformData!: WaveformDataResponseType;
 
   // Playback state properties
   private pausedAt: number = 0;
-  private startTime: number = 0; // audioContext.currentTime when playback starts
+  private startTime: number = 0;
   private playbackRate: number = 1;
-  private offset: number = 0; // Temporary offset for adjustments like beat matching
+  private offset: number = 0;
   private isPlaying: boolean = false;
-  private needsRender: boolean = true; // Flag for conditional rendering
+  private needsRender: boolean = true;
 
   // Scale animation properties
   private currentTimelineScaleX: number = 1;
@@ -157,12 +157,6 @@ export class TimelineGenerator {
 
   // --- Public Initialization Method ---
   public async initialize(): Promise<TimelineGeneratorResult> {
-    // Fetch waveform data first
-    this.waveformData = await generateWaveformData({
-      audioBuffer: this.audioBuffer,
-      pixelsPerSecond: 90,
-    });
-
     // Setup Three.js environment
     this.setupScene();
     this.setupRenderer();
@@ -171,7 +165,12 @@ export class TimelineGenerator {
     // Create visual elements
     this.timelineGroup = new THREE.Object3D();
     this.timelineGroup.name = 'TimelineGroup'; // For debugging
-    this.createWaveformVisualization(); // Adds waveform and beats to timelineGroup
+
+    const { waveformGroup, tempoData } = await this.createWaveformVisualization(
+      this.audioBuffer,
+    );
+    this.timelineGroup.add(waveformGroup);
+
     this.createCenterMarker(); // Adds marker directly to the scene
     this.starFieldGroup = this.createStarField(); // Create the star field
 
@@ -193,8 +192,148 @@ export class TimelineGenerator {
       camera: this.camera!, // Assert non-null as it's initialized
       timeLine: this.timelineGroup!, // Assert non-null
       playbackControls: this.createPlaybackControls(),
-      tempo: this.waveformData.tempoData.tempo,
+      tempo: tempoData.tempo,
       toggleAntialias: this.toggleAntialias.bind(this), // Bind the method to the class context
+    };
+  }
+
+  private async createWaveformVisualization(
+    audioBuffer: AudioBuffer,
+  ): Promise<{ waveformGroup: THREE.Group; tempoData: any }> {
+    this.waveformData = await generateWaveformData({
+      audioBuffer: audioBuffer,
+      pixelsPerSecond: 90,
+    });
+
+    const {
+      waveformData: samples, // Renamed for clarity
+      tempoData: { firstBeatOffset, beatInterval, harmonySections },
+    } = this.waveformData;
+    const duration = this.trackDuration;
+    const scaleY = 1.5; // Vertical scale factor for waveform
+    const waveformWidth = window.innerWidth; // Width of the visualization area
+
+    const timelineGroup = new THREE.Group();
+    timelineGroup.name = 'WaveformGroup';
+
+    // --- Create Consolidated Waveform Geometry (Optimization) ---
+    if (samples.length < 2) {
+      console.warn('Not enough waveform samples to draw a line.');
+      return {
+        waveformGroup: timelineGroup,
+        tempoData: this.waveformData.tempoData,
+      }; // Return an empty group
+    }
+
+    const positions: number[] = [];
+    const colors: number[] = [];
+    const timePerPoint = duration / (samples.length - 1);
+
+    // Sort harmony sections for efficient processing
+    const sortedHarmonySections = [...harmonySections].sort(
+      (a: HarmonySection, b: HarmonySection) => a.start - b.start,
+    );
+    let harmonyIndex = 0;
+
+    for (let i = 0; i < samples.length - 1; i++) {
+      const currentTimeStart = i * timePerPoint;
+      const currentTimeEnd = (i + 1) * timePerPoint;
+
+      // Determine color based on harmony sections
+      let isHarmonic = false;
+      // Check if the *start* of this segment falls within any harmony section
+      while (
+        harmonyIndex < sortedHarmonySections.length &&
+        sortedHarmonySections[harmonyIndex].end < currentTimeStart
+      ) {
+        harmonyIndex++; // Move to the next relevant harmony section
+      }
+      if (
+        harmonyIndex < sortedHarmonySections.length &&
+        currentTimeStart >= sortedHarmonySections[harmonyIndex].start &&
+        currentTimeStart < sortedHarmonySections[harmonyIndex].end
+      ) {
+        isHarmonic = true;
+      }
+
+      const color = isHarmonic ? HARMONIC_COLOR : BEAT_WAVE_COLOR;
+
+      // Calculate vertex positions for the segment
+      const x1 = (i / (samples.length - 1)) * waveformWidth - waveformWidth / 2;
+      const y1 = samples[i] * scaleY;
+      const x2 =
+        ((i + 1) / (samples.length - 1)) * waveformWidth - waveformWidth / 2;
+      const y2 = samples[i + 1] * scaleY;
+
+      // Add positions for the line segment (start and end point)
+      positions.push(x1, y1, 0, x2, y2, 0);
+
+      // Add colors for both vertices of the segment
+      colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(positions, 3),
+    );
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+    const material = new THREE.LineBasicMaterial({
+      vertexColors: true, // Use vertex colors
+      linewidth: 1, // Adjust line width if needed
+    });
+
+    const waveformLineSegments = new THREE.LineSegments(geometry, material);
+    waveformLineSegments.name = 'WaveformLineSegments';
+    timelineGroup.add(waveformLineSegments);
+
+    // --- Create Consolidated Beat Markers (Optimization) ---
+    if (beatInterval && beatInterval > 0) {
+      const beatPositions: number[] = [];
+      const numBeats = Math.floor((duration - firstBeatOffset) / beatInterval);
+
+      for (let i = 0; i <= numBeats; i++) {
+        const beatTime = firstBeatOffset + i * beatInterval;
+        if (beatTime > duration) break; // Ensure we don't go past duration
+
+        const beatX = (beatTime / duration) * waveformWidth - waveformWidth / 2;
+        const yTop = scaleY / 2;
+        const yBottom = -scaleY / 2;
+        const z = -0.05; // Keep slightly behind waveform
+
+        // Add positions for the vertical line segment (bottom point, top point)
+        beatPositions.push(beatX, yBottom, z, beatX, yTop, z);
+      }
+
+      if (beatPositions.length > 0) {
+        const beatGeometry = new THREE.BufferGeometry();
+        beatGeometry.setAttribute(
+          'position',
+          new THREE.Float32BufferAttribute(beatPositions, 3),
+        );
+
+        const beatMaterial = new THREE.LineBasicMaterial({
+          color: BEAT_MARK_COLOR,
+          linewidth: 2, // Note: linewidth > 1 might not work consistently across platforms/drivers
+          transparent: false,
+          opacity: 1.0,
+        });
+
+        const beatLineSegments = new THREE.LineSegments(
+          beatGeometry,
+          beatMaterial,
+        );
+        beatLineSegments.name = 'BeatLineSegments';
+        timelineGroup.add(beatLineSegments);
+      }
+    } else {
+      console.log('No beat interval data, skipping beat markers.');
+    }
+
+    return {
+      waveformGroup: timelineGroup,
+      tempoData: this.waveformData.tempoData,
     };
   }
 
@@ -321,137 +460,6 @@ export class TimelineGenerator {
       // Update aspect ratio if reusing
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
-    }
-  }
-
-  // --- Private Visualization Methods ---
-  private createWaveformVisualization(): void {
-    // Guard clauses
-    if (!this.timelineGroup || !this.waveformData) {
-      console.error(
-        'Timeline group or waveform data not available for visualization.',
-      );
-      return;
-    }
-
-    const {
-      waveformData: samples, // Renamed for clarity
-      tempoData: { firstBeatOffset, beatInterval, harmonySections },
-    } = this.waveformData;
-    const duration = this.trackDuration;
-    const scaleY = 1.5; // Vertical scale factor for waveform
-    const waveformWidth = window.innerWidth; // Width of the visualization area
-
-    // --- Create Consolidated Waveform Geometry (Optimization) ---
-    if (samples.length < 2) {
-      console.warn('Not enough waveform samples to draw a line.');
-      return;
-    }
-
-    const positions: number[] = [];
-    const colors: number[] = [];
-    const timePerPoint = duration / (samples.length - 1);
-
-    // Sort harmony sections for efficient processing
-    const sortedHarmonySections = [...harmonySections].sort(
-      (a: HarmonySection, b: HarmonySection) => a.start - b.start,
-    );
-    let harmonyIndex = 0;
-
-    for (let i = 0; i < samples.length - 1; i++) {
-      const currentTimeStart = i * timePerPoint;
-      const currentTimeEnd = (i + 1) * timePerPoint;
-
-      // Determine color based on harmony sections
-      let isHarmonic = false;
-      // Check if the *start* of this segment falls within any harmony section
-      while (
-        harmonyIndex < sortedHarmonySections.length &&
-        sortedHarmonySections[harmonyIndex].end < currentTimeStart
-      ) {
-        harmonyIndex++; // Move to the next relevant harmony section
-      }
-      if (
-        harmonyIndex < sortedHarmonySections.length &&
-        currentTimeStart >= sortedHarmonySections[harmonyIndex].start &&
-        currentTimeStart < sortedHarmonySections[harmonyIndex].end
-      ) {
-        isHarmonic = true;
-      }
-
-      const color = isHarmonic ? HARMONIC_COLOR : BEAT_WAVE_COLOR;
-
-      // Calculate vertex positions for the segment
-      const x1 = (i / (samples.length - 1)) * waveformWidth - waveformWidth / 2;
-      const y1 = samples[i] * scaleY;
-      const x2 =
-        ((i + 1) / (samples.length - 1)) * waveformWidth - waveformWidth / 2;
-      const y2 = samples[i + 1] * scaleY;
-
-      // Add positions for the line segment (start and end point)
-      positions.push(x1, y1, 0, x2, y2, 0);
-
-      // Add colors for both vertices of the segment
-      colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
-    }
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(positions, 3),
-    );
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-    const material = new THREE.LineBasicMaterial({
-      vertexColors: true, // Use vertex colors
-      linewidth: 1, // Adjust line width if needed
-    });
-
-    const waveformLineSegments = new THREE.LineSegments(geometry, material);
-    waveformLineSegments.name = 'WaveformLineSegments';
-    this.timelineGroup.add(waveformLineSegments);
-
-    // --- Create Consolidated Beat Markers (Optimization) ---
-    if (beatInterval && beatInterval > 0) {
-      const beatPositions: number[] = [];
-      const numBeats = Math.floor((duration - firstBeatOffset) / beatInterval);
-
-      for (let i = 0; i <= numBeats; i++) {
-        const beatTime = firstBeatOffset + i * beatInterval;
-        if (beatTime > duration) break; // Ensure we don't go past duration
-
-        const beatX = (beatTime / duration) * waveformWidth - waveformWidth / 2;
-        const yTop = scaleY / 2;
-        const yBottom = -scaleY / 2;
-        const z = -0.05; // Keep slightly behind waveform
-
-        // Add positions for the vertical line segment (bottom point, top point)
-        beatPositions.push(beatX, yBottom, z, beatX, yTop, z);
-      }
-
-      if (beatPositions.length > 0) {
-        const beatGeometry = new THREE.BufferGeometry();
-        beatGeometry.setAttribute(
-          'position',
-          new THREE.Float32BufferAttribute(beatPositions, 3),
-        );
-
-        const beatMaterial = new THREE.LineBasicMaterial({
-          color: BEAT_MARK_COLOR,
-          linewidth: 2, // Note: linewidth > 1 might not work consistently across platforms/drivers
-          transparent: false,
-          opacity: 1.0,
-        });
-
-        const beatLineSegments = new THREE.LineSegments(
-          beatGeometry,
-          beatMaterial,
-        );
-        beatLineSegments.name = 'BeatLineSegments';
-        this.timelineGroup.add(beatLineSegments);
-      }
-    } else {
-      console.log('No beat interval data, skipping beat markers.');
     }
   }
 
