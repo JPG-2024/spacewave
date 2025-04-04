@@ -67,6 +67,7 @@ interface TimelineGeneratorResult {
   timeLine: THREE.Object3D; // The main group containing waveform, beats, etc.
   playbackControls: PlaybackControls;
   tempo: number;
+  toggleAntialias: (enable: boolean) => void; // Method to toggle antialiasing
 }
 
 // Define a basic type for harmony sections until it's properly defined/imported
@@ -103,6 +104,7 @@ export class TimelineGenerator {
   private playbackRate: number = 1;
   private offset: number = 0; // Temporary offset for adjustments like beat matching
   private isPlaying: boolean = false;
+  private needsRender: boolean = true; // Flag for conditional rendering
 
   // Scale animation properties
   private currentTimelineScaleX: number = 1;
@@ -183,6 +185,7 @@ export class TimelineGenerator {
 
     // Add event listeners and start animation loop
     this.addEventListeners();
+    this.needsRender = true; // Ensure initial render
     this.animate(); // Start the rendering loop
 
     // Return the necessary controls and objects
@@ -191,7 +194,33 @@ export class TimelineGenerator {
       timeLine: this.timelineGroup!, // Assert non-null
       playbackControls: this.createPlaybackControls(),
       tempo: this.waveformData.tempoData.tempo,
+      toggleAntialias: this.toggleAntialias.bind(this), // Bind the method to the class context
     };
+  }
+
+  // --- Public Method to Toggle Antialias ---
+  public toggleAntialias(enable: boolean): void {
+    if (!this.renderer || !this.container) {
+      console.warn('Renderer or container is not initialized.');
+      return;
+    }
+
+    // Dispose the current renderer
+    this.renderer.dispose();
+    this.container.removeChild(this.renderer.domElement);
+
+    // Create a new renderer with the updated antialias setting
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: enable,
+      alpha: true, // Preserve transparency
+    });
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+
+    // Append the new renderer's canvas to the container
+    this.container.appendChild(this.renderer.domElement);
+
+    console.log(`Antialiasing has been ${enable ? 'enabled' : 'disabled'}.`);
   }
 
   // --- Private Setup Methods ---
@@ -313,119 +342,114 @@ export class TimelineGenerator {
     const scaleY = 1.5; // Vertical scale factor for waveform
     const waveformWidth = window.innerWidth; // Width of the visualization area
 
-    // --- Create Waveform Geometry ---
-    const points: THREE.Vector3[] = [];
-    // Ensure at least two points for a line
+    // --- Create Consolidated Waveform Geometry (Optimization) ---
     if (samples.length < 2) {
       console.warn('Not enough waveform samples to draw a line.');
-      return; // Or create a default line/shape
-    }
-    for (let i = 0; i < samples.length; i++) {
-      // Map index to x-coordinate relative to the center
-      const x = (i / (samples.length - 1)) * waveformWidth - waveformWidth / 2;
-      const y = samples[i] * scaleY;
-      points.push(new THREE.Vector3(x, y, 0)); // Z = 0 for waveform plane
+      return;
     }
 
-    const waveformSegmentsGroup = new THREE.Group();
-    waveformSegmentsGroup.name = 'WaveformSegments';
-    const timePerPoint = duration / (samples.length - 1); // Time represented by each segment
-    let currentIndex = 0; // Tracks the start index for the next segment
+    const positions: number[] = [];
+    const colors: number[] = [];
+    const timePerPoint = duration / (samples.length - 1);
 
-    // Sort harmony sections just in case they are not ordered
-    harmonySections.sort(
+    // Sort harmony sections for efficient processing
+    const sortedHarmonySections = [...harmonySections].sort(
       (a: HarmonySection, b: HarmonySection) => a.start - b.start,
     );
+    let harmonyIndex = 0;
 
-    harmonySections.forEach((section: HarmonySection) => {
-      // Calculate start and end indices, clamping to valid range
-      const startIndex = Math.max(
-        0,
-        Math.min(samples.length - 1, Math.floor(section.start / timePerPoint)),
-      );
-      const endIndex = Math.max(
-        startIndex,
-        Math.min(samples.length - 1, Math.floor(section.end / timePerPoint)),
-      );
+    for (let i = 0; i < samples.length - 1; i++) {
+      const currentTimeStart = i * timePerPoint;
+      const currentTimeEnd = (i + 1) * timePerPoint;
 
-      // Create segment for non-harmonic part before this section
-      if (currentIndex < startIndex) {
-        const segmentPoints = points.slice(currentIndex, startIndex + 1); // Include end point
-        if (segmentPoints.length > 1) {
-          const geometry = new THREE.BufferGeometry().setFromPoints(
-            segmentPoints,
-          );
-          const material = new THREE.LineBasicMaterial({
-            color: BEAT_WAVE_COLOR,
-          });
-          waveformSegmentsGroup.add(new THREE.Line(geometry, material));
-        }
+      // Determine color based on harmony sections
+      let isHarmonic = false;
+      // Check if the *start* of this segment falls within any harmony section
+      while (
+        harmonyIndex < sortedHarmonySections.length &&
+        sortedHarmonySections[harmonyIndex].end < currentTimeStart
+      ) {
+        harmonyIndex++; // Move to the next relevant harmony section
+      }
+      if (
+        harmonyIndex < sortedHarmonySections.length &&
+        currentTimeStart >= sortedHarmonySections[harmonyIndex].start &&
+        currentTimeStart < sortedHarmonySections[harmonyIndex].end
+      ) {
+        isHarmonic = true;
       }
 
-      // Create segment for the harmonic section
-      if (startIndex < endIndex) {
-        const segmentPoints = points.slice(startIndex, endIndex + 1); // Include end point
-        if (segmentPoints.length > 1) {
-          const geometry = new THREE.BufferGeometry().setFromPoints(
-            segmentPoints,
-          );
-          const material = new THREE.LineBasicMaterial({
-            color: HARMONIC_COLOR,
-          });
-          waveformSegmentsGroup.add(new THREE.Line(geometry, material));
-        }
-      }
-      // Update the index for the next non-harmonic section
-      currentIndex = Math.max(currentIndex, endIndex);
+      const color = isHarmonic ? HARMONIC_COLOR : BEAT_WAVE_COLOR;
+
+      // Calculate vertex positions for the segment
+      const x1 = (i / (samples.length - 1)) * waveformWidth - waveformWidth / 2;
+      const y1 = samples[i] * scaleY;
+      const x2 =
+        ((i + 1) / (samples.length - 1)) * waveformWidth - waveformWidth / 2;
+      const y2 = samples[i + 1] * scaleY;
+
+      // Add positions for the line segment (start and end point)
+      positions.push(x1, y1, 0, x2, y2, 0);
+
+      // Add colors for both vertices of the segment
+      colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(positions, 3),
+    );
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+    const material = new THREE.LineBasicMaterial({
+      vertexColors: true, // Use vertex colors
+      linewidth: 1, // Adjust line width if needed
     });
 
-    // Create segment for any remaining non-harmonic part after the last harmony section
-    if (currentIndex < samples.length - 1) {
-      const segmentPoints = points.slice(currentIndex);
-      if (segmentPoints.length > 1) {
-        const geometry = new THREE.BufferGeometry().setFromPoints(
-          segmentPoints,
-        );
-        const material = new THREE.LineBasicMaterial({
-          color: BEAT_WAVE_COLOR,
-        });
-        waveformSegmentsGroup.add(new THREE.Line(geometry, material));
-      }
-    }
-    this.timelineGroup.add(waveformSegmentsGroup);
+    const waveformLineSegments = new THREE.LineSegments(geometry, material);
+    waveformLineSegments.name = 'WaveformLineSegments';
+    this.timelineGroup.add(waveformLineSegments);
 
-    // --- Create Beat Markers ---
+    // --- Create Consolidated Beat Markers (Optimization) ---
     if (beatInterval && beatInterval > 0) {
-      const beatLinesGroup = new THREE.Group();
-      beatLinesGroup.name = 'BeatMarkers';
+      const beatPositions: number[] = [];
+      const numBeats = Math.floor((duration - firstBeatOffset) / beatInterval);
 
-      for (
-        let beatTime = firstBeatOffset;
-        beatTime < duration;
-        beatTime += beatInterval
-      ) {
-        // Map beat time to x-coordinate
+      for (let i = 0; i <= numBeats; i++) {
+        const beatTime = firstBeatOffset + i * beatInterval;
+        if (beatTime > duration) break; // Ensure we don't go past duration
+
         const beatX = (beatTime / duration) * waveformWidth - waveformWidth / 2;
+        const yTop = scaleY / 2;
+        const yBottom = -scaleY / 2;
+        const z = -0.05; // Keep slightly behind waveform
 
-        // Create a simple vertical line for the beat marker
-        const beatPoints = [
-          new THREE.Vector3(beatX, -scaleY / 2, -0.05),
-          new THREE.Vector3(beatX, scaleY / 2, -0.05),
-        ];
-        const beatGeometry = new THREE.BufferGeometry().setFromPoints(
-          beatPoints,
+        // Add positions for the vertical line segment (bottom point, top point)
+        beatPositions.push(beatX, yBottom, z, beatX, yTop, z);
+      }
+
+      if (beatPositions.length > 0) {
+        const beatGeometry = new THREE.BufferGeometry();
+        beatGeometry.setAttribute(
+          'position',
+          new THREE.Float32BufferAttribute(beatPositions, 3),
         );
+
         const beatMaterial = new THREE.LineBasicMaterial({
           color: BEAT_MARK_COLOR,
-          linewidth: 2, // Line width (may not work on all platforms)
+          linewidth: 2, // Note: linewidth > 1 might not work consistently across platforms/drivers
           transparent: false,
-          opacity: 1.0, // Fully bright
+          opacity: 1.0,
         });
-        const beatLine = new THREE.Line(beatGeometry, beatMaterial);
-        beatLinesGroup.add(beatLine);
-      }
 
-      this.timelineGroup.add(beatLinesGroup);
+        const beatLineSegments = new THREE.LineSegments(
+          beatGeometry,
+          beatMaterial,
+        );
+        beatLineSegments.name = 'BeatLineSegments';
+        this.timelineGroup.add(beatLineSegments);
+      }
     } else {
       console.log('No beat interval data, skipping beat markers.');
     }
@@ -469,14 +493,14 @@ export class TimelineGenerator {
 
     markerGeometry.scale(1.2, 2.5, 1); // Escalar para que quepa en el centro
 
-    const markerMaterial = new THREE.MeshStandardMaterial({
-      color: CENTER_MARKER_COLOR, // Fixed color format to hexadecimal
-      depthWrite: true,
-      depthTest: true,
-      emissive: CENTER_MARKER_EMISSIVE_COLOR,
-      emissiveIntensity: 0.5,
-      side: THREE.DoubleSide, // Important for visibility from both sides
-      visible: true,
+    // Optimization: Use MeshBasicMaterial for simpler rendering (no lighting)
+    const markerMaterial = new THREE.MeshBasicMaterial({
+      color: CENTER_MARKER_COLOR,
+      side: THREE.DoubleSide, // Keep double side for visibility
+      transparent: false, // Assuming it should be opaque
+      opacity: 1.0,
+      // depthTest: true, // Keep depth testing if needed for correct layering
+      // depthWrite: true, // Keep depth writing if needed
     });
 
     this.centerMarker = new THREE.Mesh(markerGeometry, markerMaterial);
@@ -555,6 +579,7 @@ export class TimelineGenerator {
         this.startTime = startTimeParam; // Record the time playback *actually* starts
         this.playbackRate = playbackRateParam; // Use provided or current rate
         this.isPlaying = true;
+        this.needsRender = true; // Need to render the moving timeline
         // No need to update position here, animate loop handles it
       },
       pause: pausedAtParam => {
@@ -566,16 +591,19 @@ export class TimelineGenerator {
         this.pausedAt = pausedAtParam;
         // Update visual position one last time to sync with paused state
         this.updateTimelinePosition();
+        this.needsRender = true; // Render the final paused state
       },
       // This seems intended to force an update, perhaps after manual seeking?
       setPosition: () => {
         this.updateTimelinePosition();
+        this.needsRender = true; // Force render on manual position update
       },
       // Apply a temporary offset, e.g., for beat nudging
       setOffset: offsetParam => {
         this.offset = offsetParam;
         // Update position immediately to reflect offset visually
         this.updateTimelinePosition();
+        this.needsRender = true; // Render the change due to offset
         // Offset is reset in updateTimelinePosition after being applied
       },
       // Set the playback position directly
@@ -594,10 +622,12 @@ export class TimelineGenerator {
         }
         // Update visual position immediately
         this.updateTimelinePosition();
+        this.needsRender = true; // Render the change due to seek
       },
       // Add the implementation for updating the playback rate
       updatePlaybackRate: newRate => {
         this.playbackRate = Math.max(0.1, newRate); // Update internal rate, ensure minimum
+        this.needsRender = true; // Rate change affects scale animation, need render
         // No immediate visual update needed here, animate loop handles it
       },
     };
@@ -636,6 +666,7 @@ export class TimelineGenerator {
           progress,
         );
         this.camera!.lookAt(0, 0, 0); // Keep looking at the center
+        this.needsRender = true; // Need to render during camera animation
 
         if (progress < 1) {
           // Continue animation if not finished
@@ -643,6 +674,7 @@ export class TimelineGenerator {
         } else {
           // Resolve the Promise when the animation is complete
           resolve();
+          this.needsRender = true; // Ensure final frame is rendered
         }
       };
 
@@ -652,8 +684,11 @@ export class TimelineGenerator {
 
   // --- Event Listeners ---
   private addEventListeners(): void {
-    // Use a property to store the bound function for easy removal
-    this.boundOnWindowResize = this.onWindowResize.bind(this);
+    // Debounce the resize handler (e.g., wait 250ms after resize stops)
+    this.boundOnWindowResize = this.debounce(
+      this.onWindowResize.bind(this),
+      250,
+    );
     window.addEventListener('resize', this.boundOnWindowResize);
 
     // Add click listener if interaction is needed
@@ -665,14 +700,39 @@ export class TimelineGenerator {
     if (this.boundOnWindowResize) {
       window.removeEventListener('resize', this.boundOnWindowResize);
     }
+    // Clear any pending debounce timeout on removal
+    if (this.resizeDebounceTimeout !== null) {
+      clearTimeout(this.resizeDebounceTimeout);
+      this.resizeDebounceTimeout = null;
+    }
     // if (this.boundOnMouseClick && this.renderer) {
     //     this.renderer.domElement.removeEventListener('click', this.boundOnMouseClick);
     // }
   }
 
-  // Store bound functions to remove listeners correctly
+  // Store bound functions and debounce timer
   private boundOnWindowResize: (() => void) | null = null;
+  private resizeDebounceTimeout: ReturnType<typeof setTimeout> | null = null; // Added for debounce cleanup
   // private boundOnMouseClick: ((event: MouseEvent) => void) | null = null;
+
+  // Debounce utility function
+  private debounce<F extends (...args: any[]) => any>(
+    func: F,
+    waitFor: number,
+  ): (...args: Parameters<F>) => void {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+
+    return (...args: Parameters<F>): void => {
+      if (timeout !== null) {
+        clearTimeout(timeout);
+      }
+      timeout = setTimeout(() => func(...args), waitFor);
+      // Store the timeout ID for potential cleanup in removeEventListeners
+      // Check if the function being debounced is indeed onWindowResize before assigning
+      // A simple check like this might be sufficient if debounce is only used here:
+      this.resizeDebounceTimeout = timeout;
+    };
+  }
 
   private onWindowResize(): void {
     // Debounce or throttle this if it causes performance issues
@@ -695,7 +755,9 @@ export class TimelineGenerator {
 
     // Re-render the scene after resize adjustments
     if (this.scene && this.camera) {
-      this.renderer.render(this.scene, this.camera);
+      // No direct render here, let the animate loop handle it
+      // this.renderer.render(this.scene, this.camera);
+      this.needsRender = true; // Flag that a render is needed due to resize
     }
   }
 
@@ -765,41 +827,49 @@ export class TimelineGenerator {
     // Schedule the next frame
     this.animationFrameId = requestAnimationFrame(this.animate.bind(this));
 
-    // Resize renderer if needed
+    let scaleChanged = false;
+    const positionChanged = this.isPlaying; // Position changes if playing
+
+    // --- Animate Scale ---
+    if (this.timelineGroup) {
+      const previousScale = this.currentTimelineScaleX;
+      // Lerp the current scale towards the target scale only if they differ significantly
+      if (
+        Math.abs(this.targetTimelineScaleX - this.currentTimelineScaleX) > 0.001 // Threshold to stop lerping
+      ) {
+        this.currentTimelineScaleX +=
+          (this.targetTimelineScaleX - this.currentTimelineScaleX) *
+          this.scaleLerpFactor;
+        this.timelineGroup.scale.set(this.currentTimelineScaleX, 1, 1);
+        scaleChanged = true;
+      } else if (this.currentTimelineScaleX !== this.targetTimelineScaleX) {
+        // Snap to target if very close
+        this.currentTimelineScaleX = this.targetTimelineScaleX;
+        this.timelineGroup.scale.set(this.currentTimelineScaleX, 1, 1);
+        scaleChanged = true; // Still counts as a change this frame
+      }
+    }
+    // --- End Animate Scale ---
+
+    // Update timeline position (needs to happen *after* potential scale change)
+    // We only *really* need to update position if playing or scale changed this frame
+    if (positionChanged || scaleChanged) {
+      this.updateTimelinePosition();
+      this.needsRender = true; // Position or scale changed, requires render
+    }
+
+    // Resize renderer if needed (check *before* rendering)
     if (this.renderer && this.resizeRendererToDisplaySize(this.renderer)) {
       const canvas = this.renderer.domElement;
       this.camera!.aspect = canvas.clientWidth / canvas.clientHeight;
       this.camera!.updateProjectionMatrix();
+      this.needsRender = true; // Resize requires render
     }
 
-    // Update timeline target scale and position
-    this.updateTimelinePosition();
-
-    // --- Animate Scale ---
-    if (this.timelineGroup) {
-      // Lerp the current scale towards the target scale
-      this.currentTimelineScaleX +=
-        (this.targetTimelineScaleX - this.currentTimelineScaleX) *
-        this.scaleLerpFactor;
-
-      // Apply the interpolated scale
-      this.timelineGroup.scale.set(this.currentTimelineScaleX, 1, 1);
-
-      // Optional: Re-adjust position slightly based on the *very latest* scale applied this frame?
-      // This might prevent tiny visual jitter if scale changes significantly in one frame.
-      // Let's test without it first. If needed, uncomment and potentially recalculate progress:
-      // const waveformWidth = window.innerWidth;
-      // const currentPosition = ... // Need currentPosition here if recalculating progress
-      // const progress = currentPosition / this.trackDuration;
-      // const adjustedX = (waveformWidth / 2 - progress * waveformWidth) * this.currentTimelineScaleX;
-      // this.timelineGroup.position.x = adjustedX;
-      // if (this.starFieldGroup) { this.starFieldGroup.position.x = adjustedX; }
-    }
-    // --- End Animate Scale ---
-
-    // Render the scene
-    if (this.renderer && this.scene && this.camera) {
+    // Render the scene only if needed
+    if (this.needsRender && this.renderer && this.scene && this.camera) {
       this.renderer.render(this.scene, this.camera);
+      this.needsRender = false; // Reset flag after rendering
     }
   }
 
