@@ -20,13 +20,17 @@ const MAXIMUM_TEMPO = 150.0;
  * @param {AudioBuffer} audioBuffer - Buffer original de audio.
  * @returns {Promise<Object>} Objeto con { tempo, offset, beatInterval }.
  */
-export async function detectBeat(audioBuffer: AudioBuffer): Promise<{
+export interface BeatDetectionResult {
   tempo: number;
   firstBeatOffset: number;
   beatInterval: number;
   harmonySections: HarmonySection[];
   beats: number[];
-}> {
+}
+
+export async function detectBeat(
+  audioBuffer: AudioBuffer,
+): Promise<BeatDetectionResult> {
   return new Promise((resolve, reject) => {
     const sampleRate = audioBuffer.sampleRate;
     const length = audioBuffer.length;

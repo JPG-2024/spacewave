@@ -136,27 +136,33 @@ export class MixerDeck {
 
       // Initialize TimelineGenerator
       this.state.timelineGenerator = new TimelineGenerator({
-        audioContext: this.state.audioContext,
         containerId: this.containerId,
-        audioBuffer: this.state.buffer,
       });
 
-      const { camera, timeLine, playbackControls, tempo } =
-        await this.state.timelineGenerator.initialize();
-
-      // Store controls and initial data
+      const { camera } = await this.state.timelineGenerator.initialize();
       this.state.cameraControls = camera;
-      this.state.timelineObject = timeLine;
-      this.state.timelineControls = playbackControls;
-      this.state.tempo = tempo;
-      this.state.initialTempo = tempo; // Store the initial BPM
+
+      const { tempoData } =
+        await this.state.timelineGenerator.createWaveformVisualization(
+          this.deckId,
+          this.state.audioContext,
+          this.state.buffer,
+        );
+      this.state.tempo = tempoData.tempo;
+      this.state.initialTempo = tempoData.tempo; // Store the initial BPM
+
+      this.state.timelineControls =
+        this.state.timelineGenerator.createTimelinePlaybackControls(
+          this.deckId,
+        );
+
       this.state.status = 'loaded';
       this.state.error = null;
       this.state.currentFileName = fileName;
       console.log(
-        `Deck ${this.deckId}: Audio loaded and timeline initialized. Tempo: ${tempo}`,
+        `Deck ${this.deckId}: Audio loaded and timeline initialized. Tempo: ${this.state.tempo}`,
       );
-      return { tempo };
+      return { tempo: this.state.tempo };
     } catch (error: any) {
       console.error(`Deck ${this.deckId}: Error loading audio:`, error);
       this.state.status = 'error';
@@ -699,6 +705,10 @@ export class MixerDeck {
    */
   public get currentFileName(): string | null {
     return this.state.currentFileName;
+  }
+
+  public get TimelineGenerator(): TimelineGenerator | null {
+    return this.state.timelineGenerator;
   }
 
   /**
