@@ -333,12 +333,10 @@ export class TimelineGenerator {
     let currentIndex = 0; // Tracks the start index for the next segment
 
     // Sort harmony sections just in case they are not ordered
-    // Add type annotation for 'a' and 'b'
     harmonySections.sort(
       (a: HarmonySection, b: HarmonySection) => a.start - b.start,
     );
 
-    // Add type annotation for 'section'
     harmonySections.forEach((section: HarmonySection) => {
       // Calculate start and end indices, clamping to valid range
       const startIndex = Math.max(
@@ -388,7 +386,7 @@ export class TimelineGenerator {
         const geometry = new THREE.BufferGeometry().setFromPoints(
           segmentPoints,
         );
-        const material = new THREE.MeshStandardMaterial({
+        const material = new THREE.LineBasicMaterial({
           color: BEAT_WAVE_COLOR,
         });
         waveformSegmentsGroup.add(new THREE.Line(geometry, material));
@@ -400,14 +398,6 @@ export class TimelineGenerator {
     if (beatInterval && beatInterval > 0) {
       const beatLinesGroup = new THREE.Group();
       beatLinesGroup.name = 'BeatMarkers';
-      const beatMarkMaterial = new THREE.LineDashedMaterial({
-        color: BEAT_MARK_COLOR,
-        opacity: 0.5,
-        transparent: true,
-        depthTest: true, // Render markers on top of waveform
-      });
-      // Use a thin box for beat markers for visibility
-      const beatMarkGeometry = new THREE.BoxGeometry(0.01, scaleY * 1.1, 0.5); // Slightly taller than waveform
 
       for (
         let beatTime = firstBeatOffset;
@@ -415,17 +405,26 @@ export class TimelineGenerator {
         beatTime += beatInterval
       ) {
         // Map beat time to x-coordinate
-        const alignmentOffset = 0.1;
-        const beatX =
-          ((beatTime + alignmentOffset) / duration) * waveformWidth -
-          waveformWidth / 2;
-        const beatMark = new THREE.Mesh(beatMarkGeometry, beatMarkMaterial);
-        // Position slightly behind the waveform (negative Z)
-        beatMark.position.set(beatX, 0, -0.05);
-        beatLinesGroup.add(beatMark);
+        const beatX = (beatTime / duration) * waveformWidth - waveformWidth / 2;
+
+        // Create a simple vertical line for the beat marker
+        const beatPoints = [
+          new THREE.Vector3(beatX, -scaleY / 2, -0.05),
+          new THREE.Vector3(beatX, scaleY / 2, -0.05),
+        ];
+        const beatGeometry = new THREE.BufferGeometry().setFromPoints(
+          beatPoints,
+        );
+        const beatMaterial = new THREE.LineBasicMaterial({
+          color: BEAT_MARK_COLOR,
+          linewidth: 2, // Line width (may not work on all platforms)
+          transparent: false,
+          opacity: 1.0, // Fully bright
+        });
+        const beatLine = new THREE.Line(beatGeometry, beatMaterial);
+        beatLinesGroup.add(beatLine);
       }
-      // Dispose geometry after creating meshes if not reused
-      //beatMarkGeometry.dispose();
+
       this.timelineGroup.add(beatLinesGroup);
     } else {
       console.log('No beat interval data, skipping beat markers.');
@@ -490,7 +489,7 @@ export class TimelineGenerator {
     const starGroup = new THREE.Group();
     starGroup.name = 'StarField';
 
-    const starCount = 20000;
+    const starCount = 10000;
     const starGeometry = new THREE.BufferGeometry();
     const positions = new Float32Array(starCount * 3);
     const colors = new Float32Array(starCount * 3); // Optional: for varied star colors
