@@ -70,7 +70,6 @@ export const MixerDecksProvider: React.FC<{ children: React.ReactNode }> = ({
   const addDeck = (id: DeckNames) => {
     if (!decksRef.current.has(id) && sceneRef.current) {
       const deck = new MixerDeck(id, sceneRef.current);
-      debugger;
       decksRef.current.set(id, deck);
     }
   };

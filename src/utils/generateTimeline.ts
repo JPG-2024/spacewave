@@ -89,6 +89,10 @@ export class TimelineGenerator {
   private readonly scaleLerpFactor: number = 0.1; // Adjust for animation speed (0-1)
   private isRendering: boolean = false;
   private frameId: number | null = null;
+  private cameraTargetPosition: THREE.Vector3 | null = null;
+  private cameraStartPosition: THREE.Vector3 | null = null;
+  private cameraAnimationStartTime: number | null = null;
+  private cameraAnimationDuration: number = 250; // ms
 
   // State object to store deck-specific properties
   private state: Record<
@@ -692,10 +696,7 @@ export class TimelineGenerator {
   }
 
   // --- Camera Animation ---
-  public async cameraMatrix(
-    mode: CameraPositionMode,
-    value: number,
-  ): Promise<void> {
+  public cameraMatrix(mode: CameraPositionMode, value: number): void {
     if (!this.camera) return;
 
     const targetPositionArray = this.ISOMETRIC_POSITIONS[mode]?.[value];
@@ -704,41 +705,15 @@ export class TimelineGenerator {
       return;
     }
 
-    const targetPosition = new THREE.Vector3(...targetPositionArray);
-    const startPosition = this.camera.position.clone();
-    const duration = 250; // Animation duration in milliseconds
+    // Guardar posición inicial y establecer target
+    this.cameraStartPosition = this.camera.position.clone();
+    this.cameraTargetPosition = new THREE.Vector3(...targetPositionArray);
+    this.cameraAnimationStartTime = performance.now();
 
-    // Ensure animation loop is running
-    if (!this.animationFrameId) {
-      this.startRenderLoop(); // Iniciar el loop de renderizado
+    // Asegurar que el loop de renderizado está activo
+    if (!this.isRendering) {
+      this.startRenderLoop();
     }
-
-    return new Promise<void>(resolve => {
-      let startTime = 0;
-
-      const animate = (timestamp: number) => {
-        if (startTime === 0) startTime = timestamp;
-        const elapsed = timestamp - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-
-        this.camera!.position.lerpVectors(
-          startPosition,
-          targetPosition,
-          progress,
-        );
-        this.camera!.lookAt(0, 0, 0);
-        this.needsRender = true;
-
-        if (progress < 1) {
-          requestAnimationFrame(animate);
-        } else {
-          resolve();
-          this.needsRender = true;
-        }
-      };
-
-      requestAnimationFrame(animate);
-    });
   }
 
   // --- Event Listeners ---
@@ -911,6 +886,33 @@ export class TimelineGenerator {
 
       let needsRender = this.needsRender;
 
+      // Manejar animación de cámara
+      if (
+        this.cameraTargetPosition &&
+        this.cameraStartPosition &&
+        this.cameraAnimationStartTime &&
+        this.camera
+      ) {
+        const elapsed = performance.now() - this.cameraAnimationStartTime;
+        const progress = Math.min(elapsed / this.cameraAnimationDuration, 1);
+
+        this.camera.position.lerpVectors(
+          this.cameraStartPosition,
+          this.cameraTargetPosition,
+          progress,
+        );
+        this.camera.lookAt(0, 0, 0);
+        this.camera.updateProjectionMatrix(); // Añadimos esta línea
+        needsRender = true;
+
+        // Limpiar estados si la animación terminó
+        if (progress === 1) {
+          this.cameraTargetPosition = null;
+          this.cameraStartPosition = null;
+          this.cameraAnimationStartTime = null;
+        }
+      }
+
       // Update all active deck positions
       for (const deckId in this.state) {
         const deckState = this.state[deckId];
@@ -945,7 +947,6 @@ export class TimelineGenerator {
           needsRender = true;
         }
 
-        // Check if this deck needs render
         if (deckState.needsRender) {
           needsRender = true;
           deckState.needsRender = false;
