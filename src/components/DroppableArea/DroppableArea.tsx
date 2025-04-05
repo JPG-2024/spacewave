@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import './DroppableArea.styles.css';
+import { DeckNames } from '@/store/uiStore';
 
 interface DroppableAreaProps {
-  id?: string;
+  id: DeckNames;
   onDropItem: (droppedText: string, id?: string) => void;
   isLoaded: boolean;
   notContentMessage: string;

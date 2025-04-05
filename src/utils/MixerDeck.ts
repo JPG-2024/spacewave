@@ -1,9 +1,10 @@
 import {
   CameraControls,
-  PlaybackControls,
+  TimeLinePlaybackControls,
   TimelineGenerator,
 } from '@/utils/generateTimeline'; // Assuming path is correct
 import * as THREE from 'three';
+import uiState from '@/store/uiStore';
 
 // --- Interfaces ---
 
@@ -22,8 +23,7 @@ export interface DeckState {
   tempo: number | null; // Current BPM
   initialTempo: number | null; // BPM detected on load
   timelineGenerator: TimelineGenerator | null;
-  timelineControls: PlaybackControls | null;
-  cameraControls: CameraControls | null; // Store camera controls if needed
+  timelineControls: TimeLinePlaybackControls | null;
   timelineObject: THREE.Object3D | null; // Store timeline object if needed
   status: 'empty' | 'loading' | 'loaded' | 'playing' | 'paused' | 'error';
   error: string | null;
@@ -38,7 +38,8 @@ export interface DeckState {
 export class MixerDeck {
   private state: DeckState;
   private readonly deckId: string;
-  private readonly containerId: string; // DOM element ID for the timeline visualization
+  private readonly sceneInstance: TimelineGenerator;
+
   private colorFXFrequency: number = 1000;
   private colorFXResonance: number = 0.1;
   private colorFXMix: number = 0;
@@ -46,13 +47,12 @@ export class MixerDeck {
   private midGain: number = 0;
   private trebleGain: number = 0;
 
-  constructor(deckId: string, containerId: string) {
+  constructor(deckId: string, scene: TimelineGenerator) {
     this.deckId = deckId;
-    this.containerId = containerId;
+    this.sceneInstance = scene;
+
     this.state = this.getInitialState();
-    console.log(
-      `MixerDeck ${this.deckId} initialized for container #${this.containerId}`,
-    );
+    console.log(`MixerDeck ${this.deckId} initialized `);
   }
 
   private getInitialState(): DeckState {
@@ -76,7 +76,7 @@ export class MixerDeck {
       initialTempo: null,
       timelineGenerator: null,
       timelineControls: null,
-      cameraControls: null,
+
       timelineObject: null,
       status: 'empty',
       error: null,
@@ -90,10 +90,15 @@ export class MixerDeck {
   // --- Public Methods ---
 
   /**
-   * Loads audio from a URL, analyzes it, and prepares the deck for playback.
+   * Loads audio from a URL, analyzes it, add waveform to the three.js scene, and prepares the deck for playback.
    * @param fileName - The URL of the audio file.
    */
   public async loadAudio(fileName: string): Promise<{ tempo: number } | null> {
+    if (!this.sceneInstance) {
+      console.error(`Deck ${this.deckId}: Scene not available.`);
+      return null;
+    }
+
     console.log(`Deck ${this.deckId}: Loading audio from ${fileName}`);
     this.reset(); // Reset state before loading new audio
     this.state.status = 'loading';
@@ -134,27 +139,18 @@ export class MixerDeck {
         `Deck ${this.deckId}: Audio decoded, duration: ${this.state.duration.toFixed(2)}s`,
       );
 
-      // Initialize TimelineGenerator
-      this.state.timelineGenerator = new TimelineGenerator({
-        containerId: this.containerId,
-      });
-
-      const { camera } = await this.state.timelineGenerator.initialize();
-      this.state.cameraControls = camera;
-
       const { tempoData } =
-        await this.state.timelineGenerator.createWaveformVisualization(
+        await this.sceneInstance.createWaveformVisualization(
           this.deckId,
           this.state.audioContext,
           this.state.buffer,
         );
+
       this.state.tempo = tempoData.tempo;
       this.state.initialTempo = tempoData.tempo; // Store the initial BPM
 
       this.state.timelineControls =
-        this.state.timelineGenerator.createTimelinePlaybackControls(
-          this.deckId,
-        );
+        this.sceneInstance.getTimelinePlaybackControls(this.deckId);
 
       this.state.status = 'loaded';
       this.state.error = null;
@@ -168,7 +164,7 @@ export class MixerDeck {
       this.state.status = 'error';
       this.state.error = error.message || 'Unknown error during loading.';
       this.reset(); // Clean up partial state on error
-      return false;
+      return null;
     }
   }
 
@@ -555,7 +551,6 @@ export class MixerDeck {
     this.state.tempo = initial.tempo;
     this.state.initialTempo = initial.initialTempo;
     this.state.timelineControls = initial.timelineControls;
-    this.state.cameraControls = initial.cameraControls;
     this.state.timelineObject = initial.timelineObject;
     this.state.status = 'empty'; // Set status to empty after reset
     this.state.error = initial.error;
@@ -712,13 +707,6 @@ export class MixerDeck {
   }
 
   /**
-   * Provides access to the timeline's camera controls, if available.
-   */
-  public get camera(): CameraControls | null {
-    return this.state.cameraControls;
-  }
-
-  /**
    * Provides access to the THREE.js object representing the timeline, if available.
    */
   public get timeline(): THREE.Object3D | null {
@@ -726,6 +714,10 @@ export class MixerDeck {
   }
 
   // --- Public Methods for EQ Control ---
+
+  public getInitialTempo(): number | null {
+    return this.initialTempo;
+  }
 
   public setBassGain(gain: number): void {
     if (this.state.bassFilter && this.state.audioContext) {

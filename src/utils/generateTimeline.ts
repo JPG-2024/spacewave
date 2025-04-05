@@ -56,8 +56,6 @@ interface TimelineGeneratorResult {
   toggleAntialias: (enable: boolean) => void; // Method to toggle antialiasing
 }
 
-type WaveformDataResponseType = any;
-
 interface GenerateTimelineParams {
   containerId: string;
 }
@@ -203,8 +201,8 @@ export class TimelineGenerator {
     this.state[deckId].timelineGroup = new THREE.Group();
     this.state[deckId].timelineGroup.name = `WaveformGroup-${deckId}`;
 
-    const initialX = window.innerWidth / 2;
-    this.state[deckId].timelineGroup.position.x = initialX; // Initial position for 0 progress
+    //const initialX = window.innerWidth / 2;
+    //this.state[deckId].timelineGroup.position.x = initialX; // Initial position for 0 progress
 
     if (samples.length < 2) {
       console.warn('Not enough waveform samples to draw a line.');
@@ -306,7 +304,6 @@ export class TimelineGenerator {
     } else {
       console.log('No beat interval data, skipping beat markers.');
     }
-
     this.scene!.add(this.state[deckId].timelineGroup); // Add the timeline group to the scene
 
     return {
@@ -407,15 +404,38 @@ export class TimelineGenerator {
     if (!this.renderer) {
       this.renderer = new THREE.WebGLRenderer({
         antialias: true,
-        alpha: true, // For transparent background
+        alpha: true,
       });
-      this.renderer.setPixelRatio(window.devicePixelRatio); // Adjust for screen density
+      this.renderer.setPixelRatio(window.devicePixelRatio);
       this.renderer.setSize(window.innerWidth, window.innerHeight);
       this.container!.appendChild(this.renderer.domElement);
+
+      // Add event listeners for context loss/restoration
+      this.renderer.domElement.addEventListener(
+        'webglcontextlost',
+        this.handleContextLoss.bind(this),
+        false,
+      );
+      this.renderer.domElement.addEventListener(
+        'webglcontextrestored',
+        this.handleContextRestored.bind(this),
+        false,
+      );
     } else {
-      // Ensure size is updated if the window was resized before reinitialization
       this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
+  }
+
+  private handleContextLoss(event: Event): void {
+    event.preventDefault();
+    console.warn('WebGL context lost. Attempting to restore...');
+    this.animationFrameId && cancelAnimationFrame(this.animationFrameId);
+  }
+
+  private handleContextRestored(): void {
+    console.log('WebGL context restored.');
+    this.setupRenderer();
+    this.animate();
   }
 
   private setupCamera(): void {
@@ -552,9 +572,7 @@ export class TimelineGenerator {
   }
 
   // --- Playback Control Logic ---
-  public createTimelinePlaybackControls(
-    deckId: string,
-  ): TimeLinePlaybackControls {
+  public getTimelinePlaybackControls(deckId: string): TimeLinePlaybackControls {
     return {
       play: (
         startTimeParam = this.state[deckId].audioContext.currentTime,
@@ -623,7 +641,7 @@ export class TimelineGenerator {
   }
 
   // --- Camera Animation ---
-  private async cameraMatrix(
+  public async cameraMatrix(
     mode: CameraPositionMode,
     value: number,
   ): Promise<void> {
@@ -655,6 +673,8 @@ export class TimelineGenerator {
           progress,
         );
         this.camera!.lookAt(0, 0, 0); // Keep looking at the center
+
+        this.camera!.updateProjectionMatrix();
 
         if (progress < 1) {
           // Continue animation if not finished
@@ -729,7 +749,9 @@ export class TimelineGenerator {
 
   private animate(): void {
     this.animationFrameId = requestAnimationFrame(this.animate.bind(this));
+
     this.updateTimelinePosition();
+
     if (this.renderer && this.scene && this.camera) {
       this.renderer.render(this.scene, this.camera);
     }

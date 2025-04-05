@@ -1,4 +1,11 @@
 import { proxy } from 'valtio';
+import { TimelineGenerator } from '@/utils/generateTimeline';
+import { MixerDeck } from '@/utils/MixerDeck';
+
+export enum DeckNames {
+  deck1 = 'deck1',
+  deck2 = 'deck2',
+}
 
 interface CameraPositions {
   isometric: number;
@@ -24,12 +31,18 @@ export type Filters = {
 };
 
 interface UIState {
-  camera: { currentMode: string; positions: CameraPositions };
-  filters: Filters;
+  cameraState: { currentMode: string; positions: CameraPositions };
+  scene: { instance: TimelineGenerator | null };
+  decks: {
+    [key in DeckNames]: {
+      instance: MixerDeck | null;
+      filtersState: Filters;
+    };
+  };
 }
 
 const uiState = proxy<UIState>({
-  camera: {
+  cameraState: {
     currentMode: 'side',
     positions: {
       isometric: 0,
@@ -38,13 +51,37 @@ const uiState = proxy<UIState>({
       closeSideRight: 0,
     },
   },
-  filters: {
-    bassGain: { value: 0, isActive: false },
-    midGain: { value: 0, isActive: false },
-    trebleGain: { value: 0, isActive: false },
-    colorFX: { value: 0, isActive: false },
-    tempo: { value: 0, isActive: false },
+  scene: { instance: null },
+  decks: {
+    [DeckNames.deck1]: {
+      instance: null,
+      filtersState: {
+        bassGain: { value: 0, isActive: false },
+        midGain: { value: 0, isActive: false },
+        trebleGain: { value: 0, isActive: false },
+        colorFX: { value: 0, isActive: false },
+        tempo: { value: 0, isActive: false },
+      },
+    },
+    [DeckNames.deck2]: {
+      instance: null,
+      filtersState: {
+        bassGain: { value: 0, isActive: false },
+        midGain: { value: 0, isActive: false },
+        trebleGain: { value: 0, isActive: false },
+        colorFX: { value: 0, isActive: false },
+        tempo: { value: 0, isActive: false },
+      },
+    },
   },
 });
+
+/**
+ * Returns the scene instance from the UI state
+ * @returns The TimelineGenerator instance or null if not initialized
+ */
+export const getSceneInstance = (): TimelineGenerator | null => {
+  return uiState.scene.instance;
+};
 
 export default uiState;

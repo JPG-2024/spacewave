@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
-import uiState from '@/store/uiStore';
+import uiState, { Filters, DeckNames } from '@/store/uiStore';
 
 interface UseFilterOptions {
+  deckId: DeckNames;
   activateKey: string; // Tecla que debe mantenerse presionada
-  name: keyof typeof uiState.filters;
+  name: keyof Filters;
   onChange?: (value: number) => void; // Función a llamar con el valor actualizado
   min: number; // Valor mínimo permitido
   max: number; // Valor máximo permitido
@@ -14,6 +15,7 @@ interface UseFilterOptions {
 }
 
 export function useFilter({
+  deckId,
   activateKey,
   name,
   onChange,
@@ -30,21 +32,21 @@ export function useFilter({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === activateKey) {
-        uiState.filters[name].isActive = true;
+        uiState.decks[deckId].filtersState[name].isActive = true;
         document.body.style.cursor = 'grabbing';
       }
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
       if (event.key === activateKey) {
-        uiState.filters[name].isActive = false;
+        uiState.decks[deckId].filtersState[name].isActive = false;
         onChange && changeOnKeyUp && onChange(valueRef.current);
         document.body.style.cursor = 'default';
       }
     };
 
     const handleMouseMove = (event: MouseEvent) => {
-      if (uiState.filters[name].isActive) {
+      if (uiState.decks[deckId].filtersState[name].isActive) {
         const delta = event.movementX * sensitivity; // Movimiento horizontal del puntero ajustado por sensibilidad
 
         valueRef.current = valueRef.current + delta;
@@ -66,7 +68,7 @@ export function useFilter({
         if (newValue < min) newValue = min;
         if (newValue > max) newValue = max;
         valueRef.current = newValue;
-        uiState.filters[name].value = valueRef.current;
+        uiState.decks[deckId].filtersState[name].value = newValue;
         if (!changeOnKeyUp && onChange) {
           onChange(valueRef.current);
         }

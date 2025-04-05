@@ -3,8 +3,10 @@ import './FilterComponent.styles.css';
 import { useSnapshot } from 'valtio';
 import uiState, { FiltersNames } from '@/store/uiStore';
 import { useFilter } from '@/hooks/useFilter';
+import { DeckNames } from '@/store/uiStore';
 
 interface FilterComponentProps {
+  deckId: DeckNames;
   activateKey: string;
   name: FiltersNames;
   min?: number;
@@ -20,6 +22,7 @@ interface FilterComponentProps {
 }
 
 const FilterComponent: React.FC<FilterComponentProps> = ({
+  deckId,
   name,
   activateKey,
   min = -1,
@@ -55,11 +58,12 @@ const FilterComponent: React.FC<FilterComponentProps> = ({
 
   const handleReset = () => {
     if (!showReset) return;
-    uiState.filters[name].value = initialValue;
+    uiState.decks[deckId].filtersState[name].value = initialValue;
     handleChange(initialValue);
   };
 
   useFilter({
+    deckId,
     activateKey,
     name,
     onChange: handleChange,
@@ -71,7 +75,9 @@ const FilterComponent: React.FC<FilterComponentProps> = ({
     thresholdStick,
   });
 
-  const { isActive, value } = useSnapshot(uiState.filters[name]);
+  const { isActive, value } = useSnapshot(
+    uiState.decks[deckId].filtersState[name],
+  );
   const threshold = 1;
   const background =
     Math.abs(value - initialValue) > threshold ? '#f882a050' : 'transparent';

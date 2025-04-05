@@ -5,19 +5,42 @@ import { MiniatureTimeline } from '@/components/MiniatureTimeline/MiniatureTimel
 import TrackCover from '@/components/TrackCover/TrackCover';
 import VerticalLoading from '@/components/VerticalLoading/VerticalLoading';
 import { useMixerDecks } from '@/contexts/MixerDecksProvider';
-import uiState from '@/store/uiStore';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import uiState, { DeckNames, getSceneInstance } from '@/store/uiStore';
+import { useEffect, useRef, useState } from 'react';
 import './App.styles.css';
 
+const WEBGL_CANVAS_ID = 'WEBGL_CANVAS_ID';
+
+const useInitializeScene = (webGLCanvasId: string) => {
+  const [sceneInitialized, setSceneInitialized] = useState(false);
+  const { addDeck, addScene } = useMixerDecks();
+
+  useEffect(() => {
+    const initScene = async () => {
+      await addScene(webGLCanvasId || WEBGL_CANVAS_ID);
+      await addDeck(DeckNames.deck1);
+      await addDeck(DeckNames.deck2);
+      console.log('Scene initialized');
+    };
+
+    if (!sceneInitialized) {
+      initScene();
+      setSceneInitialized(true);
+    }
+  }, [sceneInitialized]);
+
+  return sceneInitialized;
+};
+
 const App = () => {
-  const { addDeck, getDeck } = useMixerDecks();
+  const { getDeck, getScene } = useMixerDecks();
   const [isLoading, setIsLoading] = useState(false);
   const webGLRef = useRef<HTMLDivElement | null>(null);
 
+  const sceneInitialized = useInitializeScene(WEBGL_CANVAS_ID);
+
   useEffect(() => {
-    // Initialize MixerDeck instance
-    //getDeck('deck1') = new MixerDeck('deck1', 'deck1webfl');
-    addDeck('deck1', 'deck1webfl');
+    if (!sceneInitialized) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       e.preventDefault();
@@ -43,19 +66,19 @@ const App = () => {
       }
 
       if (e.key === 'p') {
-        if (getDeck('deck1')?.isPlayingState === true) {
-          getDeck('deck1')?.pause();
+        if (getDeck(DeckNames.deck1)?.isPlayingState === true) {
+          getDeck(DeckNames.deck1)?.pause();
         } else {
-          getDeck('deck1')?.play();
+          getDeck(DeckNames.deck1)?.play();
         }
       }
 
       if (e.key === ' ') {
         e.preventDefault();
-        if (getDeck('deck1')?.isPlayingState === true) {
-          getDeck('deck1')?.pause();
+        if (getDeck(DeckNames.deck1)?.isPlayingState === true) {
+          getDeck(DeckNames.deck1)?.pause();
         } else {
-          getDeck('deck1')?.play();
+          getDeck(DeckNames.deck1)?.play();
         }
       }
     };
@@ -82,74 +105,59 @@ const App = () => {
       }
 
       //TODO: verify
-      //getDeck('deck1')?.dispose();
+      //getDeck(DeckNames.deck1)?.dispose();
     };
-  }, []);
+  }, [sceneInitialized]);
 
-  const handleLoadAudio = async (droppedText: string, id?: string) => {
+  const handleLoadAudio = async (droppedText: string, deckId: DeckNames) => {
     setIsLoading(true);
 
-    getDeck('deck1')?.pause(); // Pause existing playback if any
+    if (!sceneInitialized) {
+      console.error(`Deck ${deckId}: Deck not available.`);
+      return;
+    }
 
-    const result = await getDeck('deck1')
-      ?.loadAudio(droppedText)
+    getDeck(deckId).pause();
+
+    const result = await getDeck(deckId)
+      .loadAudio(droppedText)
       .finally(() => {
         setIsLoading(false);
       });
 
-    if (result) {
-      uiState.filters.tempo.value = result.tempo;
+    if (result && result.tempo) {
+      uiState.decks[deckId].filtersState.tempo.value = result.tempo;
     }
   };
 
   const switchCameraValue = async (
-    mode: keyof typeof uiState.camera.positions,
+    mode: keyof typeof uiState.cameraState.positions,
   ) => {
-    const { positions } = uiState.camera;
-    const deck = getDeck('deck1');
-    if (!deck?.camera?.ISOMETRIC_POSITIONS) return;
+    if (!sceneInitialized) return;
 
-    const ISOMETRIC_POSITIONS = deck.camera.ISOMETRIC_POSITIONS;
+    const { positions } = uiState.cameraState;
 
-    if (uiState.camera.currentMode === mode) {
+    if (uiState.cameraState.currentMode === mode) {
       if (
         positions[mode] >=
-        Object.keys(ISOMETRIC_POSITIONS[mode]).length - 1
+        Object.keys(getScene().ISOMETRIC_POSITIONS[mode]).length - 1
       ) {
         positions[mode] = 0;
       } else {
         positions[mode] = positions[mode] + 1;
       }
     } else {
-      uiState.camera.currentMode = mode;
+      uiState.cameraState.currentMode = mode;
     }
 
-    await deck.camera?.cameraMatrix(mode as any, positions[mode]);
-
-    const cameraZ = deck.camera?.position.z;
-    const normalizedCameraZ = cameraZ ? ((cameraZ - 3) / (40 - 3)) * 0.1 : 0;
-  };
-
-  const handleChangeTempo = useCallback((tempo: number) => {
-    getDeck('deck1').changeTempo(tempo);
-  }, []);
-
-  const handleGetTempo = () => {
-    const deck = getDeck('deck1');
-    return deck?.initialTempo ?? 0;
-  };
-
-  const isDeckReady = () => {
-    const deck = getDeck('deck1');
-    if (!deck) return false;
-    return !['loading', 'empty'].includes(deck.currentStatus);
+    await getScene().cameraMatrix(mode as any, positions[mode]);
   };
 
   return (
     <div className="app">
       <DroppableArea
-        id="deck1"
-        isLoaded={!!getDeck('deck1')}
+        id={DeckNames.deck1}
+        isLoaded={!!getDeck(DeckNames.deck1)}
         notContentMessage="Drop a track here"
         onDropItem={handleLoadAudio}
       >
@@ -159,54 +167,63 @@ const App = () => {
           height="100vh"
           isLoading={isLoading}
         >
-          <div className="webGLCanvas" id="deck1webfl" ref={webGLRef}></div>
+          <div
+            className="webGLCanvas"
+            id={WEBGL_CANVAS_ID}
+            ref={webGLRef}
+          ></div>
         </VerticalLoading>
       </DroppableArea>
 
-      {isDeckReady() && (
+      {sceneInitialized && getDeck(DeckNames.deck1) && (
         <div className="app__bottom-bar">
-          <TrackCover fileName={getDeck('deck1')?.currentFileName} />
+          <TrackCover fileName={getDeck(DeckNames.deck1).currentFileName} />
           <div className="miniature-timeline-container">
-            <MiniatureTimeline deckId="deck1" />
+            <MiniatureTimeline deckId={DeckNames.deck1} />
           </div>
 
           <FilterComponent
+            deckId={DeckNames.deck1}
             name="bassGain"
             activateKey="q"
             initialValue={0}
             type="bassGain"
-            deck={getDeck('deck1')}
+            deck={getDeck(DeckNames.deck1)}
           />
           <FilterComponent
+            deckId={DeckNames.deck1}
             name="midGain"
             activateKey="w"
             initialValue={0}
             type="midGain"
-            deck={getDeck('deck1')}
+            deck={getDeck(DeckNames.deck1)}
           />
           <FilterComponent
+            deckId={DeckNames.deck1}
             name="trebleGain"
             activateKey="e"
             initialValue={0}
             type="trebleGain"
-            deck={getDeck('deck1')}
+            deck={getDeck(DeckNames.deck1)}
           />
           <FilterComponent
+            deckId={DeckNames.deck1}
             name="colorFX"
             activateKey="r"
             initialValue={0}
             type="colorFX"
             sensitivity={0.0005}
-            deck={getDeck('deck1')}
+            deck={getDeck(DeckNames.deck1)}
           />
           <FilterComponent
+            deckId={DeckNames.deck1}
             name="tempo"
             activateKey="t"
-            initialValue={getDeck('deck1')?.initialTempo}
+            initialValue={getDeck(DeckNames.deck1).getInitialTempo()}
             type="tempo"
-            min={getDeck('deck1')?.initialTempo - 40}
-            max={getDeck('deck1')?.initialTempo + 40}
-            deck={getDeck('deck1')}
+            min={getDeck(DeckNames.deck1).getInitialTempo() - 40}
+            max={getDeck(DeckNames.deck1).getInitialTempo() + 40}
+            deck={getDeck(DeckNames.deck1)}
             changeOnKeyUp={true}
             sensitivity={0.1}
             showReset={true}
