@@ -64,6 +64,7 @@ interface GenerateTimelineParams {
 export class TimelineGenerator {
   // --- Private Properties ---
   private scene: THREE.Scene | null = null;
+  private needsRender: boolean = false;
   private camera: CameraControls | null = null;
   private renderer: THREE.WebGLRenderer | null = null;
   private animationFrameId: number | null = null;
@@ -640,48 +641,64 @@ export class TimelineGenerator {
     };
   }
 
-  // --- Camera Animation ---
-  public async cameraMatrix(
+  // --- Core Animation Logic ---
+  private async cameraMatrix(
     mode: CameraPositionMode,
+
     value: number,
   ): Promise<void> {
     if (!this.camera) return;
 
     const targetPositionArray = this.ISOMETRIC_POSITIONS[mode]?.[value];
+
     if (!targetPositionArray || targetPositionArray.length !== 3) {
       console.warn(`Invalid camera mode/value provided: ${mode}/${value}`);
+
       return;
     }
 
     const targetPosition = new THREE.Vector3(...targetPositionArray);
+
     const startPosition = this.camera.position.clone();
+
     const duration = 250; // Animation duration in milliseconds
 
     // Return a Promise that resolves when the animation is complete
+
     await new Promise<void>(resolve => {
       let startTime = 0; // Will be set in the animation loop
 
       const animate = (timestamp: number) => {
         if (startTime === 0) startTime = timestamp; // Initialize start time
+
         const elapsed = timestamp - startTime;
+
         const progress = Math.min(elapsed / duration, 1); // Clamp progress between 0 and 1
 
         // Interpolate position
+
         this.camera!.position.lerpVectors(
           startPosition,
+
           targetPosition,
+
           progress,
         );
+
         this.camera!.lookAt(0, 0, 0); // Keep looking at the center
 
-        this.camera!.updateProjectionMatrix();
+        this.needsRender = true; // Need to render during camera animation
 
         if (progress < 1) {
           // Continue animation if not finished
+
           requestAnimationFrame(animate);
         } else {
           // Resolve the Promise when the animation is complete
+
           resolve();
+
+          this.needsRender = true; // Ensure final frame is rendered
         }
       };
 
@@ -689,71 +706,15 @@ export class TimelineGenerator {
     });
   }
 
-  // --- Core Animation Logic ---
-  private updateTimelinePosition(): void {
-    // Iterate through all active decks
-    Object.keys(this.state).forEach(deckId => {
-      const deckState = this.state[deckId];
-      if (
-        !deckState ||
-        !deckState.timelineGroup ||
-        !deckState.audioContext ||
-        deckState.trackDuration <= 0
-      ) {
-        return; // Skip deck if not properly initialized
-      }
-
-      let currentPosition = deckState.pausedAt;
-      if (deckState.isPlaying) {
-        // Calculate time elapsed since playback started, adjusted by rate
-        const elapsedTime =
-          (deckState.audioContext.currentTime - deckState.startTime) *
-          deckState.playbackRate;
-        currentPosition += elapsedTime;
-      }
-
-      // Apply temporary offset and immediately reset it
-      currentPosition += deckState.offset;
-      deckState.offset = 0;
-
-      // Clamp position to valid range [0, trackDuration]
-      currentPosition = Math.max(
-        0,
-        Math.min(currentPosition, deckState.trackDuration),
-      );
-
-      // Calculate progress (0 to 1)
-      const progress = currentPosition / deckState.trackDuration;
-
-      const waveformWidth = window.innerWidth;
-
-      const effectivePlaybackRate = Math.max(deckState.playbackRate, 0.1);
-
-      deckState.targetTimelineScaleX = Math.max(0.1, 2 - effectivePlaybackRate); // Ensure scale doesn't go below 0.1
-
-      // Calculate targetX based on the CURRENTLY applied scale for smooth positioning during animation
-      const targetX =
-        (waveformWidth / 2 - progress * waveformWidth) *
-        deckState.currentTimelineScaleX;
-
-      // Set the adjusted position (scaling is handled in the animate loop)
-      deckState.timelineGroup.position.x = targetX;
-    });
-
-    // Move the star field along with the active timeline (using deck1 as primary if available)
-    if (this.starFieldGroup && this.state['deck1']?.timelineGroup) {
-      this.starFieldGroup.position.x =
-        this.state['deck1'].timelineGroup.position.x;
-    }
-  }
-
   private animate(): void {
     this.animationFrameId = requestAnimationFrame(this.animate.bind(this));
 
-    this.updateTimelinePosition();
+    if (this.renderer && this.scene && this.camera) {
+      this.camera!.updateProjectionMatrix();
+      this.renderer.render(this.scene, this.camera);
+    }
 
     if (this.renderer && this.scene && this.camera) {
-      this.renderer.render(this.scene, this.camera);
     }
   }
 
