@@ -87,6 +87,8 @@ export class TimelineGenerator {
   private container: HTMLElement | null = null;
   private needsRender: boolean = true; // Flag for conditional rendering
   private readonly scaleLerpFactor: number = 0.1; // Adjust for animation speed (0-1)
+  private isRendering: boolean = false;
+  private frameId: number | null = null;
 
   // State object to store deck-specific properties
   private state: Record<
@@ -149,28 +151,30 @@ export class TimelineGenerator {
     // Setup Three.js environment
     this.setupScene();
     this.setupRenderer();
-    this.setupCamera(); // Camera needs to be setup before creating controls
+    this.setupCamera();
 
     // Create center marker and star field
-    this.createCenterMarker(); // Adds marker directly to the scene
-    this.starFieldGroup = this.createStarField(); // Create the star field
+    this.createCenterMarker();
+    this.starFieldGroup = this.createStarField();
 
-    // Position the star field
     const initialX = window.innerWidth / 2;
-    this.starFieldGroup.position.x = initialX; // Star field starts at the same position
+    this.starFieldGroup.position.x = initialX;
 
-    this.scene!.add(this.starFieldGroup); // Add the star field to the scene
+    this.scene!.add(this.starFieldGroup);
 
-    // Add event listeners and start animation loop
+    // Add event listeners
     this.addEventListeners();
-    this.needsRender = true; // Ensure initial render
-    this.animate(); // Start the rendering loop
 
-    // Return the necessary controls and objects
+    // Ensure animation loop is running
+    if (!this.animationFrameId) {
+      this.needsRender = true;
+      this.startRenderLoop(); // Iniciar el loop de renderizado
+    }
+
     return {
-      camera: this.camera!, // Assert non-null as it's initialized
+      camera: this.camera!,
       playbackControls: this.createPlaybackControls(),
-      toggleAntialias: this.toggleAntialias.bind(this), // Bind the method to the class context
+      toggleAntialias: this.toggleAntialias.bind(this),
     };
   }
 
@@ -704,35 +708,36 @@ export class TimelineGenerator {
     const startPosition = this.camera.position.clone();
     const duration = 250; // Animation duration in milliseconds
 
-    // Return a Promise that resolves when the animation is complete
-    await new Promise<void>(resolve => {
-      let startTime = 0; // Will be set in the animation loop
+    // Ensure animation loop is running
+    if (!this.animationFrameId) {
+      this.startRenderLoop(); // Iniciar el loop de renderizado
+    }
+
+    return new Promise<void>(resolve => {
+      let startTime = 0;
 
       const animate = (timestamp: number) => {
-        if (startTime === 0) startTime = timestamp; // Initialize start time
+        if (startTime === 0) startTime = timestamp;
         const elapsed = timestamp - startTime;
-        const progress = Math.min(elapsed / duration, 1); // Clamp progress between 0 and 1
+        const progress = Math.min(elapsed / duration, 1);
 
-        // Interpolate position
         this.camera!.position.lerpVectors(
           startPosition,
           targetPosition,
           progress,
         );
-        this.camera!.lookAt(0, 0, 0); // Keep looking at the center
-        this.needsRender = true; // Need to render during camera animation
+        this.camera!.lookAt(0, 0, 0);
+        this.needsRender = true;
 
         if (progress < 1) {
-          // Continue animation if not finished
           requestAnimationFrame(animate);
         } else {
-          // Resolve the Promise when the animation is complete
           resolve();
-          this.needsRender = true; // Ensure final frame is rendered
+          this.needsRender = true;
         }
       };
 
-      requestAnimationFrame(animate); // Start the animation loop
+      requestAnimationFrame(animate);
     });
   }
 
@@ -895,101 +900,91 @@ export class TimelineGenerator {
     return needResize;
   }
 
-  private animate(): void {
-    // Schedule the next frame
-    this.animationFrameId = requestAnimationFrame(this.animate.bind(this));
+  private startRenderLoop() {
+    if (this.isRendering) return;
 
-    // Process each deck's timeline
-    Object.keys(this.state).forEach(deckId => {
-      const deckState = this.state[deckId];
-      if (!deckState.timelineGroup) return;
+    this.isRendering = true;
+    const animate = () => {
+      if (!this.isRendering) return;
 
-      let scaleChanged = false;
-      const positionChanged = deckState.isPlaying; // Position changes if playing
+      this.frameId = requestAnimationFrame(animate);
 
-      // --- Animate Scale ---
-      // Lerp the current scale towards the target scale only if they differ significantly
-      if (
-        Math.abs(
-          deckState.targetTimelineScaleX - deckState.currentTimelineScaleX,
-        ) > 0.001 // Threshold to stop lerping
-      ) {
-        deckState.currentTimelineScaleX +=
-          (deckState.targetTimelineScaleX - deckState.currentTimelineScaleX) *
-          this.scaleLerpFactor;
-        deckState.timelineGroup.scale.set(
-          deckState.currentTimelineScaleX,
-          1,
-          1,
-        );
-        scaleChanged = true;
-      } else if (
-        deckState.currentTimelineScaleX !== deckState.targetTimelineScaleX
-      ) {
-        // Snap to target if very close
-        deckState.currentTimelineScaleX = deckState.targetTimelineScaleX;
-        deckState.timelineGroup.scale.set(
-          deckState.currentTimelineScaleX,
-          1,
-          1,
-        );
-        scaleChanged = true; // Still counts as a change this frame
+      let needsRender = this.needsRender;
+
+      // Update all active deck positions
+      for (const deckId in this.state) {
+        const deckState = this.state[deckId];
+
+        // Always update position if playing
+        if (deckState.isPlaying) {
+          this.updateTimelinePosition(deckId);
+          needsRender = true;
+        }
+
+        // Handle scale animation
+        if (
+          deckState.currentTimelineScaleX !== deckState.targetTimelineScaleX
+        ) {
+          deckState.currentTimelineScaleX = THREE.MathUtils.lerp(
+            deckState.currentTimelineScaleX,
+            deckState.targetTimelineScaleX,
+            this.scaleLerpFactor,
+          );
+
+          if (
+            Math.abs(
+              deckState.currentTimelineScaleX - deckState.targetTimelineScaleX,
+            ) < 0.001
+          ) {
+            deckState.currentTimelineScaleX = deckState.targetTimelineScaleX;
+          }
+
+          if (deckState.timelineGroup) {
+            deckState.timelineGroup.scale.x = deckState.currentTimelineScaleX;
+          }
+          needsRender = true;
+        }
+
+        // Check if this deck needs render
+        if (deckState.needsRender) {
+          needsRender = true;
+          deckState.needsRender = false;
+        }
       }
-      // --- End Animate Scale ---
 
-      // Update timeline position (needs to happen *after* potential scale change)
-      // We only *really* need to update position if playing or scale changed this frame
-      if (positionChanged || scaleChanged) {
-        this.updateTimelinePosition(deckId);
-        this.needsRender = true; // Position or scale changed, requires render
+      // Render if needed
+      if (needsRender && this.renderer && this.scene && this.camera) {
+        this.renderer.render(this.scene, this.camera);
+        this.needsRender = false;
       }
-    });
+    };
 
-    // Resize renderer if needed (check *before* rendering)
-    if (this.renderer && this.resizeRendererToDisplaySize(this.renderer)) {
-      const canvas = this.renderer.domElement;
-      this.camera!.aspect = canvas.clientWidth / canvas.clientHeight;
-      this.camera!.updateProjectionMatrix();
-      this.needsRender = true; // Resize requires render
-    }
+    animate();
+  }
 
-    // Render the scene only if needed
-    if (this.needsRender && this.renderer && this.scene && this.camera) {
-      this.renderer.render(this.scene, this.camera);
-      this.needsRender = false; // Reset flag after rendering
-
-      // Reset individual deck render flags
-      Object.keys(this.state).forEach(deckId => {
-        this.state[deckId].needsRender = false;
-      });
+  private stopRenderLoop() {
+    this.isRendering = false;
+    if (this.frameId !== null) {
+      cancelAnimationFrame(this.frameId);
+      this.frameId = null;
     }
   }
 
-  // --- Public Cleanup Method ---
+  public forceRender() {
+    if (this.renderer && this.scene && this.camera) {
+      this.needsRender = true;
+      if (!this.isRendering) {
+        this.renderer.render(this.scene, this.camera);
+      }
+    }
+  }
+
   public dispose(): void {
-    console.log('Disposing TimelineGenerator...');
-    // Stop animation loop
+    this.stopRenderLoop();
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
-    // Remove event listeners
-    this.removeEventListeners();
-    // Clean up Three.js scene objects
     this.cleanupScene();
-    // Dispose renderer and remove its canvas
-    if (this.renderer) {
-      this.renderer.dispose();
-      this.renderer.domElement.remove(); // Remove canvas from DOM
-      this.renderer = null;
-    }
-    // Nullify references to help garbage collection
-    this.scene = null;
-    this.camera = null;
-    // timelineGroup, centerMarker, and starFieldGroup are handled in cleanupScene
-    this.container = null;
-    // waveformData might be large, nullify if not needed elsewhere
-    // this.waveformData = null;
-    console.log('TimelineGenerator disposed.');
   }
 }

@@ -1,7 +1,15 @@
-import React, { useRef, createContext, useContext } from 'react';
+import React, {
+  useRef,
+  useEffect,
+  useState,
+  createContext,
+  useContext,
+} from 'react';
 import { MixerDeck } from '@/utils/MixerDeck';
 import { TimelineGenerator } from '@/utils/generateTimeline';
 import { DeckNames } from '@/store/uiStore';
+
+export const WEBGL_CANVAS_ID = 'WEBGL_CANVAS_ID';
 
 // Definir la interfaz del contexto
 interface MixerDecksContextType {
@@ -10,6 +18,7 @@ interface MixerDecksContextType {
   removeDeck: (id: DeckNames) => void;
   addScene: (containerId: string) => Promise<TimelineGenerator>;
   getScene: () => TimelineGenerator;
+  sceneInitialized: boolean;
 }
 
 // Crear el contexto con un valor inicial null
@@ -20,12 +29,48 @@ export const MixerDecksContext = createContext<MixerDecksContextType | null>(
 export const MixerDecksProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const [sceneInitialized, setSceneInitialized] = useState(false);
+
   const decksRef = useRef<Map<DeckNames, MixerDeck>>(new Map());
-  const sceneRef = useRef<TimelineGenerator>(undefined);
+  const sceneRef = useRef<TimelineGenerator | null>(null);
+
+  useEffect(() => {
+    const initScene = async () => {
+      if (!sceneRef.current) {
+        const scene = new TimelineGenerator({
+          containerId: WEBGL_CANVAS_ID,
+        });
+        await scene.initialize();
+        sceneRef.current = scene;
+
+        await addDeck(DeckNames.deck1);
+        await addDeck(DeckNames.deck2);
+        setSceneInitialized(true);
+        console.log('Scene initialized');
+      }
+    };
+
+    initScene();
+
+    return () => {
+      if (sceneRef.current) {
+        sceneRef.current.dispose();
+        sceneRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleCameraChange = async (mode: string, value: number) => {
+    if (sceneRef.current) {
+      await sceneRef.current.cameraMatrix(mode as any, value);
+      sceneRef.current.forceRender(); // Forzar un render después del cambio
+    }
+  };
 
   const addDeck = (id: DeckNames) => {
     if (!decksRef.current.has(id) && sceneRef.current) {
       const deck = new MixerDeck(id, sceneRef.current);
+      debugger;
       decksRef.current.set(id, deck);
     }
   };
@@ -41,24 +86,20 @@ export const MixerDecksProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const addScene = async (containerId: string): Promise<TimelineGenerator> => {
-    if (!sceneRef.current) {
-      const scene = new TimelineGenerator({
-        containerId: containerId,
-      });
-      await scene.initialize();
-      sceneRef.current = scene;
-    }
-    return sceneRef.current;
-  };
-
   const getScene = (): TimelineGenerator => {
     return sceneRef.current;
   };
 
   return (
     <MixerDecksContext.Provider
-      value={{ addDeck, getDeck, removeDeck, addScene, getScene }}
+      value={{
+        addDeck,
+        getDeck,
+        removeDeck,
+        handleCameraChange,
+        sceneInitialized,
+        getScene,
+      }}
     >
       {children}
     </MixerDecksContext.Provider>

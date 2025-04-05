@@ -76,12 +76,4 @@ const uiState = proxy<UIState>({
   },
 });
 
-/**
- * Returns the scene instance from the UI state
- * @returns The TimelineGenerator instance or null if not initialized
- */
-export const getSceneInstance = (): TimelineGenerator | null => {
-  return uiState.scene.instance;
-};
-
 export default uiState;

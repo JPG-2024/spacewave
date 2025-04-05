@@ -4,40 +4,16 @@ import FilterComponent from '@/components/FilterComponent/FilterComponent';
 import { MiniatureTimeline } from '@/components/MiniatureTimeline/MiniatureTimeline';
 import TrackCover from '@/components/TrackCover/TrackCover';
 import VerticalLoading from '@/components/VerticalLoading/VerticalLoading';
-import { useMixerDecks } from '@/contexts/MixerDecksProvider';
-import uiState, { DeckNames, getSceneInstance } from '@/store/uiStore';
+import { useMixerDecks, WEBGL_CANVAS_ID } from '@/contexts/MixerDecksProvider';
+import uiState, { DeckNames } from '@/store/uiStore';
 import { useEffect, useRef, useState } from 'react';
 import './App.styles.css';
 
-const WEBGL_CANVAS_ID = 'WEBGL_CANVAS_ID';
-
-const useInitializeScene = (webGLCanvasId: string) => {
-  const [sceneInitialized, setSceneInitialized] = useState(false);
-  const { addDeck, addScene } = useMixerDecks();
-
-  useEffect(() => {
-    const initScene = async () => {
-      await addScene(webGLCanvasId || WEBGL_CANVAS_ID);
-      await addDeck(DeckNames.deck1);
-      await addDeck(DeckNames.deck2);
-      console.log('Scene initialized');
-    };
-
-    if (!sceneInitialized) {
-      initScene();
-      setSceneInitialized(true);
-    }
-  }, [sceneInitialized]);
-
-  return sceneInitialized;
-};
-
 const App = () => {
-  const { getDeck, getScene } = useMixerDecks();
+  const { getDeck, getScene, handleCameraChange, sceneInitialized } =
+    useMixerDecks();
   const [isLoading, setIsLoading] = useState(false);
   const webGLRef = useRef<HTMLDivElement | null>(null);
-
-  const sceneInitialized = useInitializeScene(WEBGL_CANVAS_ID);
 
   useEffect(() => {
     if (!sceneInitialized) return;
@@ -150,7 +126,15 @@ const App = () => {
       uiState.cameraState.currentMode = mode;
     }
 
-    await getScene().cameraMatrix(mode as any, positions[mode]);
+    const scene = getScene();
+    if (!scene) {
+      console.warn('Scene not available');
+      return;
+    }
+
+    await handleCameraChange(mode as any, positions[mode]);
+    // Forzar un render inmediato después del cambio de cámara
+    scene.requestRender?.(); // Asumiendo que agregaremos este método
   };
 
   return (

@@ -1,10 +1,5 @@
-import {
-  CameraControls,
-  TimeLinePlaybackControls,
-  TimelineGenerator,
-} from '@/utils/generateTimeline'; // Assuming path is correct
+import { TimelineGenerator, PlaybackControls } from '@/utils/generateTimeline'; // Assuming path is correct
 import * as THREE from 'three';
-import uiState from '@/store/uiStore';
 
 // --- Interfaces ---
 
@@ -23,7 +18,7 @@ export interface DeckState {
   tempo: number | null; // Current BPM
   initialTempo: number | null; // BPM detected on load
   timelineGenerator: TimelineGenerator | null;
-  timelineControls: TimeLinePlaybackControls | null;
+  timelineControls: PlaybackControls | null;
   timelineObject: THREE.Object3D | null; // Store timeline object if needed
   status: 'empty' | 'loading' | 'loaded' | 'playing' | 'paused' | 'error';
   error: string | null;
@@ -149,8 +144,7 @@ export class MixerDeck {
       this.state.tempo = tempoData.tempo;
       this.state.initialTempo = tempoData.tempo; // Store the initial BPM
 
-      this.state.timelineControls =
-        this.sceneInstance.getTimelinePlaybackControls(this.deckId);
+      this.state.timelineControls = this.sceneInstance.createPlaybackControls();
 
       this.state.status = 'loaded';
       this.state.error = null;
@@ -270,11 +264,15 @@ export class MixerDeck {
 
       // Notify timeline visualization
       this.state.timelineControls.play(
+        this.deckId,
         this.state.startTime,
         this.state.playbackRate,
       );
 
-      this.state.timelineControls?.updatePlaybackRate(this.state.playbackRate);
+      this.state.timelineControls.updatePlaybackRate(
+        this.deckId,
+        this.state.playbackRate,
+      );
 
       console.log(`Deck ${this.deckId}: Playing from ${offset.toFixed(2)}s`);
     } catch (error) {
@@ -328,7 +326,7 @@ export class MixerDeck {
       this.state.status = 'paused';
 
       // Notify timeline visualization
-      this.state.timelineControls.pause(this.state.pausedAt);
+      this.state.timelineControls.pause(this.deckId, this.state.pausedAt);
 
       console.log(
         `Deck ${this.deckId}: Paused at ${this.state.pausedAt.toFixed(2)}s`,
@@ -376,14 +374,14 @@ export class MixerDeck {
       );
 
       // Update timeline visualization immediately
-      this.state.timelineControls?.setSeekPosition(seekTime);
+      this.state.timelineControls?.setSeekPosition(this.deckId, seekTime);
 
       if (wasPlaying) {
         this.play(); // Resume playback after seeking
       } else {
         // If paused, ensure the timeline reflects the new pausedAt position visually
         // This might already be handled by setSeekPosition, but double-check TimelineGenerator logic
-        this.state.timelineControls?.pause(seekTime); // Re-call pause to ensure visual sync
+        this.state.timelineControls?.pause(this.deckId, seekTime); // Re-call pause to ensure visual sync
       }
 
       return seekTime;
@@ -437,7 +435,7 @@ export class MixerDeck {
       this.state.status = 'paused'; // Temporarily paused
 
       // Notify timeline visualization to pause
-      this.state.timelineControls?.pause(pauseTime);
+      this.state.timelineControls?.pause(this.deckId, pauseTime);
 
       // Disconnect nodes
       this.disconnectNodes();
@@ -450,7 +448,10 @@ export class MixerDeck {
 
     // Update timeline controls with the new rate (visual scaling/positioning)
     // This needs to happen regardless of playback state
-    this.state.timelineControls?.updatePlaybackRate(newPlaybackRate);
+    this.state.timelineControls?.updatePlaybackRate(
+      this.deckId,
+      newPlaybackRate,
+    );
 
     console.log(
       `Deck ${this.deckId}: Tempo changed to ${safeTempo.toFixed(1)} BPM, Playback Rate: ${newPlaybackRate.toFixed(3)}. Paused at: ${pauseTime.toFixed(2)}s`,
@@ -503,7 +504,7 @@ export class MixerDeck {
     );
 
     // Apply visual offset via timeline controls
-    this.state.timelineControls.setOffset(visualOffsetAmount);
+    this.state.timelineControls.setOffset(this.deckId, visualOffsetAmount);
     // The offset in TimelineGenerator is reset automatically in its update loop.
   }
 
