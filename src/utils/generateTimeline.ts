@@ -696,12 +696,11 @@ export class TimelineGenerator {
   }
 
   // --- Camera Animation ---
-  public cameraMatrix(mode: CameraPositionMode, value: number): void {
-    console.log('cameraMatrix called', { mode, value });
-    if (!this.camera) {
-      console.warn('No camera available');
-      return;
-    }
+  private async cameraMatrix(
+    mode: CameraPositionMode,
+    value: number,
+  ): Promise<void> {
+    if (!this.camera) return;
 
     const targetPositionArray = this.ISOMETRIC_POSITIONS[mode]?.[value];
     if (!targetPositionArray || targetPositionArray.length !== 3) {
@@ -709,24 +708,40 @@ export class TimelineGenerator {
       return;
     }
 
-    console.log('Setting camera animation:', {
-      mode,
-      value,
-      targetPosition: targetPositionArray,
-      currentPosition: this.camera.position.toArray(),
+    const targetPosition = new THREE.Vector3(...targetPositionArray);
+    const startPosition = this.camera.position.clone();
+    const duration = 250; // Animation duration in milliseconds
+
+    // Return a Promise that resolves when the animation is complete
+    await new Promise<void>(resolve => {
+      let startTime = 0; // Will be set in the animation loop
+
+      const animate = (timestamp: number) => {
+        if (startTime === 0) startTime = timestamp; // Initialize start time
+        const elapsed = timestamp - startTime;
+        const progress = Math.min(elapsed / duration, 1); // Clamp progress between 0 and 1
+
+        // Interpolate position
+        this.camera!.position.lerpVectors(
+          startPosition,
+          targetPosition,
+          progress,
+        );
+        this.camera!.lookAt(0, 0, 0); // Keep looking at the center
+        this.needsRender = true; // Need to render during camera animation
+
+        if (progress < 1) {
+          // Continue animation if not finished
+          requestAnimationFrame(animate);
+        } else {
+          // Resolve the Promise when the animation is complete
+          resolve();
+          this.needsRender = true; // Ensure final frame is rendered
+        }
+      };
+
+      requestAnimationFrame(animate); // Start the animation loop
     });
-
-    // Guardar posición inicial y establecer target
-    this.cameraStartPosition = this.camera.position.clone();
-    this.cameraTargetPosition = new THREE.Vector3(...targetPositionArray);
-    this.cameraAnimationStartTime = performance.now();
-
-    // Asegurar que el loop de renderizado está activo
-    if (!this.isRendering) {
-      console.log('Starting render loop');
-      this.needsRender = true;
-      this.startRenderLoop();
-    }
   }
 
   // --- Event Listeners ---
@@ -896,56 +911,6 @@ export class TimelineGenerator {
       if (!this.isRendering) return;
 
       this.frameId = requestAnimationFrame(animate);
-      //let needsRender = this.needsRender;
-      let needsRender = true;
-
-      // Manejar animación de cámara
-      if (
-        this.cameraTargetPosition &&
-        this.cameraStartPosition &&
-        this.cameraAnimationStartTime &&
-        this.camera
-      ) {
-        const elapsed = performance.now() - this.cameraAnimationStartTime;
-        const progress = Math.min(elapsed / this.cameraAnimationDuration, 1);
-
-        // Usar THREE.Vector3.lerp en lugar de lerpVectors
-        this.camera.position
-          .copy(this.cameraStartPosition)
-          .lerp(this.cameraTargetPosition, progress);
-
-        // Forzar la posición exacta al finalizar
-        if (progress === 1) {
-          this.camera.position.copy(this.cameraTargetPosition);
-        }
-
-        this.camera.lookAt(0, 0, 0);
-        this.camera.updateProjectionMatrix();
-        console.log(
-          'Camera position updated in animation loop:',
-          this.camera.position.toArray(),
-        );
-        console.log('camera.lookAt called');
-
-        // Forzar render en cada frame de la animación
-        needsRender = true;
-
-        console.log('Camera Animation:', {
-          progress,
-          position: this.camera.position.toArray(),
-          target: this.cameraTargetPosition.toArray(),
-          needsRender,
-        });
-
-        // Limpiar estados si la animación terminó
-        if (progress === 1) {
-          console.log('Final camera position:', this.camera.position.toArray());
-          this.cameraTargetPosition = null;
-          this.cameraStartPosition = null;
-          this.cameraAnimationStartTime = null;
-          this.forceRender();
-        }
-      }
 
       // Update all active deck positions
       for (const deckId in this.state) {
@@ -954,7 +919,7 @@ export class TimelineGenerator {
         // Always update position if playing
         if (deckState.isPlaying) {
           this.updateTimelinePosition(deckId);
-          needsRender = true;
+          this.needsRender = true;
         }
 
         // Handle scale animation
@@ -978,17 +943,17 @@ export class TimelineGenerator {
           if (deckState.timelineGroup) {
             deckState.timelineGroup.scale.x = deckState.currentTimelineScaleX;
           }
-          needsRender = true;
+          this.needsRender = true;
         }
 
         if (deckState.needsRender) {
-          needsRender = true;
+          this.needsRender = true;
           deckState.needsRender = false;
         }
       }
 
       // Render if needed
-      if (needsRender && this.renderer && this.scene && this.camera) {
+      if (this.needsRender && this.renderer && this.scene && this.camera) {
         this.renderer.render(this.scene, this.camera);
         this.needsRender = false;
       }
