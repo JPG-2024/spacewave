@@ -697,6 +697,7 @@ export class TimelineGenerator {
 
   // --- Camera Animation ---
   public cameraMatrix(mode: CameraPositionMode, value: number): void {
+    console.log('cameraMatrix called', { mode, value });
     if (!this.camera) {
       console.warn('No camera available');
       return;
@@ -723,6 +724,7 @@ export class TimelineGenerator {
     // Asegurar que el loop de renderizado está activo
     if (!this.isRendering) {
       console.log('Starting render loop');
+      this.needsRender = true;
       this.startRenderLoop();
     }
   }
@@ -894,7 +896,8 @@ export class TimelineGenerator {
       if (!this.isRendering) return;
 
       this.frameId = requestAnimationFrame(animate);
-      let needsRender = this.needsRender;
+      //let needsRender = this.needsRender;
+      let needsRender = true;
 
       // Manejar animación de cámara
       if (
@@ -918,6 +921,11 @@ export class TimelineGenerator {
 
         this.camera.lookAt(0, 0, 0);
         this.camera.updateProjectionMatrix();
+        console.log(
+          'Camera position updated in animation loop:',
+          this.camera.position.toArray(),
+        );
+        console.log('camera.lookAt called');
 
         // Forzar render en cada frame de la animación
         needsRender = true;
@@ -935,6 +943,7 @@ export class TimelineGenerator {
           this.cameraTargetPosition = null;
           this.cameraStartPosition = null;
           this.cameraAnimationStartTime = null;
+          this.forceRender();
         }
       }
 
