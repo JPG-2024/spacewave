@@ -92,7 +92,7 @@ export class TimelineGenerator {
   private cameraTargetPosition: THREE.Vector3 | null = null;
   private cameraStartPosition: THREE.Vector3 | null = null;
   private cameraAnimationStartTime: number | null = null;
-  private cameraAnimationDuration: number = 250; // ms
+  private cameraAnimationDuration: number = 1000; // Aumentamos a 1 segundo para ver mejor la animación
 
   // State object to store deck-specific properties
   private state: Record<
@@ -697,13 +697,23 @@ export class TimelineGenerator {
 
   // --- Camera Animation ---
   public cameraMatrix(mode: CameraPositionMode, value: number): void {
-    if (!this.camera) return;
+    if (!this.camera) {
+      console.warn('No camera available');
+      return;
+    }
 
     const targetPositionArray = this.ISOMETRIC_POSITIONS[mode]?.[value];
     if (!targetPositionArray || targetPositionArray.length !== 3) {
       console.warn(`Invalid camera mode/value provided: ${mode}/${value}`);
       return;
     }
+
+    console.log('Setting camera animation:', {
+      mode,
+      value,
+      targetPosition: targetPositionArray,
+      currentPosition: this.camera.position.toArray(),
+    });
 
     // Guardar posición inicial y establecer target
     this.cameraStartPosition = this.camera.position.clone();
@@ -712,6 +722,7 @@ export class TimelineGenerator {
 
     // Asegurar que el loop de renderizado está activo
     if (!this.isRendering) {
+      console.log('Starting render loop');
       this.startRenderLoop();
     }
   }
@@ -883,7 +894,6 @@ export class TimelineGenerator {
       if (!this.isRendering) return;
 
       this.frameId = requestAnimationFrame(animate);
-
       let needsRender = this.needsRender;
 
       // Manejar animación de cámara
@@ -896,17 +906,32 @@ export class TimelineGenerator {
         const elapsed = performance.now() - this.cameraAnimationStartTime;
         const progress = Math.min(elapsed / this.cameraAnimationDuration, 1);
 
-        this.camera.position.lerpVectors(
-          this.cameraStartPosition,
-          this.cameraTargetPosition,
-          progress,
-        );
+        // Usar THREE.Vector3.lerp en lugar de lerpVectors
+        this.camera.position
+          .copy(this.cameraStartPosition)
+          .lerp(this.cameraTargetPosition, progress);
+
+        // Forzar la posición exacta al finalizar
+        if (progress === 1) {
+          this.camera.position.copy(this.cameraTargetPosition);
+        }
+
         this.camera.lookAt(0, 0, 0);
-        this.camera.updateProjectionMatrix(); // Añadimos esta línea
+        this.camera.updateProjectionMatrix();
+
+        // Forzar render en cada frame de la animación
         needsRender = true;
+
+        console.log('Camera Animation:', {
+          progress,
+          position: this.camera.position.toArray(),
+          target: this.cameraTargetPosition.toArray(),
+          needsRender,
+        });
 
         // Limpiar estados si la animación terminó
         if (progress === 1) {
+          console.log('Final camera position:', this.camera.position.toArray());
           this.cameraTargetPosition = null;
           this.cameraStartPosition = null;
           this.cameraAnimationStartTime = null;
