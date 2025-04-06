@@ -152,7 +152,7 @@ export class MixerDeck {
       console.log(
         `Deck ${this.deckId}: Audio loaded and timeline initialized. Tempo: ${this.state.tempo}`,
       );
-      return { tempo: this.state.tempo };
+      return { tempo: this.state.tempo! };
     } catch (error: any) {
       console.error(`Deck ${this.deckId}: Error loading audio:`, error);
       this.state.status = 'error';

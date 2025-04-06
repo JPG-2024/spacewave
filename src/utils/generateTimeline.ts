@@ -79,7 +79,7 @@ type WaveformDataResponseType = any;
 export class TimelineGenerator {
   // --- Private Properties ---
   private scene: THREE.Scene | null = null;
-  private camera: CameraControls | null = null;
+  public camera: CameraControls | null = null;
   private renderer: THREE.WebGLRenderer | null = null;
   private animationFrameId: number | null = null;
   private starFieldGroup: THREE.Group | null = null; // Group for the star field
@@ -89,10 +89,6 @@ export class TimelineGenerator {
   private readonly scaleLerpFactor: number = 0.1; // Adjust for animation speed (0-1)
   private isRendering: boolean = false;
   private frameId: number | null = null;
-  private cameraTargetPosition: THREE.Vector3 | null = null;
-  private cameraStartPosition: THREE.Vector3 | null = null;
-  private cameraAnimationStartTime: number | null = null;
-  private cameraAnimationDuration: number = 1000; // Aumentamos a 1 segundo para ver mejor la animación
 
   // State object to store deck-specific properties
   private state: Record<
@@ -165,9 +161,6 @@ export class TimelineGenerator {
     this.starFieldGroup.position.x = initialX;
 
     this.scene!.add(this.starFieldGroup);
-
-    // Add event listeners
-    this.addEventListeners();
 
     // Ensure animation loop is running
     if (!this.animationFrameId) {
@@ -595,6 +588,10 @@ export class TimelineGenerator {
     return starGroup;
   }
 
+  public createCamera() {
+    return () => this.camera;
+  }
+
   // --- Playback Control Logic ---
   public createPlaybackControls(): PlaybackControls {
     return {
@@ -728,13 +725,15 @@ export class TimelineGenerator {
           progress,
         );
         this.camera!.lookAt(0, 0, 0); // Keep looking at the center
-        this.needsRender = true; // Need to render during camera animation
+        this.camera!.updateProjectionMatrix();
 
         if (progress < 1) {
           // Continue animation if not finished
+          this.needsRender = true; // Need to render during camera animation
           requestAnimationFrame(animate);
         } else {
           // Resolve the Promise when the animation is complete
+
           resolve();
           this.needsRender = true; // Ensure final frame is rendered
         }
@@ -744,84 +743,26 @@ export class TimelineGenerator {
     });
   }
 
-  // --- Event Listeners ---
-  private addEventListeners(): void {
-    // Debounce the resize handler (e.g., wait 250ms after resize stops)
-    this.boundOnWindowResize = this.debounce(
-      this.onWindowResize.bind(this),
-      250,
-    );
-    window.addEventListener('resize', this.boundOnWindowResize);
-
-    // Add click listener if interaction is needed
-    // this.boundOnMouseClick = this.onMouseClick.bind(this);
-    // this.renderer?.domElement.addEventListener('click', this.boundOnMouseClick);
+  public getCameraMatrix(): (
+    mode: CameraPositionMode,
+    value: number,
+  ) => Promise<void> {
+    // Devuelve el método cameraMatrix con el contexto de la instancia enlazado
+    return this.cameraMatrix.bind(this);
   }
 
-  private removeEventListeners(): void {
-    if (this.boundOnWindowResize) {
-      window.removeEventListener('resize', this.boundOnWindowResize);
+  public boundCameraMatrix = async (
+    mode: CameraPositionMode,
+    value: number,
+  ): Promise<void> => {
+    await this.cameraMatrix(mode, value);
+    this.needsRender = true; // Asegurarse de que se active el render
+
+    // Si estamos usando requestAnimationFrame, forzar un render
+    if (this.renderer && this.scene && this.camera) {
+      this.renderer.render(this.scene, this.camera);
     }
-    // Clear any pending debounce timeout on removal
-    if (this.resizeDebounceTimeout !== null) {
-      clearTimeout(this.resizeDebounceTimeout);
-      this.resizeDebounceTimeout = null;
-    }
-    // if (this.boundOnMouseClick && this.renderer) {
-    //     this.renderer.domElement.removeEventListener('click', this.boundOnMouseClick);
-    // }
-  }
-
-  // Store bound functions and debounce timer
-  private boundOnWindowResize: (() => void) | null = null;
-  private resizeDebounceTimeout: ReturnType<typeof setTimeout> | null = null; // Added for debounce cleanup
-  // private boundOnMouseClick: ((event: MouseEvent) => void) | null = null;
-
-  // Debounce utility function
-  private debounce<F extends (...args: any[]) => any>(
-    func: F,
-    waitFor: number,
-  ): (...args: Parameters<F>) => void {
-    let timeout: ReturnType<typeof setTimeout> | null = null;
-
-    return (...args: Parameters<F>): void => {
-      if (timeout !== null) {
-        clearTimeout(timeout);
-      }
-      timeout = setTimeout(() => func(...args), waitFor);
-      // Store the timeout ID for potential cleanup in removeEventListeners
-      // Check if the function being debounced is indeed onWindowResize before assigning
-      // A simple check like this might be sufficient if debounce is only used here:
-      this.resizeDebounceTimeout = timeout;
-    };
-  }
-
-  private onWindowResize(): void {
-    // Debounce or throttle this if it causes performance issues
-    if (!this.camera || !this.renderer) return;
-
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-
-    // Update Camera
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
-
-    // Update Renderer
-    this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(window.devicePixelRatio); // Re-apply pixel ratio
-
-    console.warn(
-      'Window resized: Waveform visualization might need regeneration for accurate scaling.',
-    );
-
-    // Re-render the scene after resize adjustments
-    if (this.scene && this.camera) {
-      // No direct render here, let the animate loop handle it
-      // this.renderer.render(this.scene, this.camera);
-      this.needsRender = true; // Flag that a render is needed due to resize
-    }
-  }
+  };
 
   // --- Core Animation Logic ---
   private updateTimelinePosition(deckId: string): void {
@@ -890,17 +831,6 @@ export class TimelineGenerator {
     // Mark this deck as needing render
     deckState.needsRender = true;
     this.needsRender = true; // Global render flag
-  }
-
-  private resizeRendererToDisplaySize(renderer: THREE.WebGLRenderer): boolean {
-    const canvas = renderer.domElement;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    const needResize = canvas.width !== width || canvas.height !== height;
-    if (needResize) {
-      renderer.setSize(width, height, false);
-    }
-    return needResize;
   }
 
   private startRenderLoop() {

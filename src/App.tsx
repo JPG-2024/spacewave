@@ -10,8 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import './App.styles.css';
 
 const App = () => {
-  const { getDeck, getScene, handleCameraChange, sceneInitialized } =
-    useMixerDecks();
+  const { getDeck, getScene, sceneInitialized } = useMixerDecks();
   const [isLoading, setIsLoading] = useState(false);
   const webGLRef = useRef<HTMLDivElement | null>(null);
 
@@ -132,9 +131,13 @@ const App = () => {
       return;
     }
 
-    await handleCameraChange(mode as any, positions[mode]);
-    // Forzar un render inmediato después del cambio de cámara
-    scene.requestRender?.(); // Asumiendo que agregaremos este método
+    console.log('Switching camera:', {
+      mode,
+      value: positions[mode],
+      scene: !!scene,
+    });
+
+    await getScene().camera?.cameraMatrix(mode as any, positions[mode]);
   };
 
   return (
@@ -143,7 +146,9 @@ const App = () => {
         id={DeckNames.deck1}
         isLoaded={!!getDeck(DeckNames.deck1)}
         notContentMessage="Drop a track here"
-        onDropItem={handleLoadAudio}
+        onDropItem={(droppedText, id) =>
+          handleLoadAudio(droppedText, id as DeckNames)
+        }
       >
         <VerticalLoading
           conditionalRender={false}
@@ -203,10 +208,10 @@ const App = () => {
             deckId={DeckNames.deck1}
             name="tempo"
             activateKey="t"
-            initialValue={getDeck(DeckNames.deck1).getInitialTempo()}
+            initialValue={getDeck(DeckNames.deck1).getInitialTempo()!}
             type="tempo"
-            min={getDeck(DeckNames.deck1).getInitialTempo() - 40}
-            max={getDeck(DeckNames.deck1).getInitialTempo() + 40}
+            min={getDeck(DeckNames.deck1).getInitialTempo()! - 40}
+            max={getDeck(DeckNames.deck1).getInitialTempo()! + 40}
             deck={getDeck(DeckNames.deck1)}
             changeOnKeyUp={true}
             sensitivity={0.1}

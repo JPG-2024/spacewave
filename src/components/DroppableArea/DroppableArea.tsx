@@ -4,7 +4,7 @@ import { DeckNames } from '@/store/uiStore';
 
 interface DroppableAreaProps {
   id: DeckNames;
-  onDropItem: (droppedText: string, id?: string) => void;
+  onDropItem: (droppedText: string, id: string) => void;
   isLoaded: boolean;
   notContentMessage: string;
   children: React.ReactNode;
@@ -19,14 +19,14 @@ export const DroppableArea: React.FC<DroppableAreaProps> = ({
 }) => {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
-  const handleDrop = event => {
+  const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
     const droppedText = event.dataTransfer.getData('text/plain');
     onDropItem(droppedText, id);
     setIsDraggingOver(false);
   };
 
-  const handleDragOver = event => {
+  const handleDragOver = (event: React.DragEvent) => {
     event.preventDefault();
     setIsDraggingOver(true);
   };

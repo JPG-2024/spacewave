@@ -16,12 +16,11 @@ interface MixerDecksContextType {
   addDeck: (id: DeckNames) => void;
   getDeck: (id: DeckNames) => MixerDeck;
   removeDeck: (id: DeckNames) => void;
-  addScene: (containerId: string) => Promise<TimelineGenerator>;
   getScene: () => TimelineGenerator;
+  initScene: () => Promise<void>;
   sceneInitialized: boolean;
 }
 
-// Crear el contexto con un valor inicial null
 export const MixerDecksContext = createContext<MixerDecksContextType | null>(
   null,
 );
@@ -32,40 +31,31 @@ export const MixerDecksProvider: React.FC<{ children: React.ReactNode }> = ({
   const [sceneInitialized, setSceneInitialized] = useState(false);
 
   const decksRef = useRef<Map<DeckNames, MixerDeck>>(new Map());
-  const sceneRef = useRef<TimelineGenerator | null>(null);
+  const sceneRef = useRef<TimelineGenerator>(null);
 
-  useEffect(() => {
-    const initScene = async () => {
-      if (!sceneRef.current) {
-        const scene = new TimelineGenerator({
-          containerId: WEBGL_CANVAS_ID,
-        });
-        await scene.initialize();
-        sceneRef.current = scene;
+  const initScene = async () => {
+    if (!sceneRef.current) {
+      const scene = new TimelineGenerator({
+        containerId: WEBGL_CANVAS_ID,
+      });
+      sceneRef.current = scene;
+      await scene.initialize();
 
-        await addDeck(DeckNames.deck1);
-        await addDeck(DeckNames.deck2);
-        setSceneInitialized(true);
-        console.log('Scene initialized');
-      }
-    };
+      await addDeck(DeckNames.deck1);
+      await addDeck(DeckNames.deck2);
 
-    initScene();
-
-    return () => {
-      if (sceneRef.current) {
-        sceneRef.current.dispose();
-        sceneRef.current = null;
-      }
-    };
-  }, []);
-
-  const handleCameraChange = async (mode: string, value: number) => {
-    if (sceneRef.current) {
-      await sceneRef.current.cameraMatrix(mode as any, value);
-      sceneRef.current.forceRender(); // Forzar un render después del cambio
+      setSceneInitialized(true);
+      console.log('Scene initialized');
     }
   };
+
+  //TODO: evaluar iniciar la scene en un useEffect
+  useEffect(() => {
+    if (!sceneInitialized) {
+      initScene();
+      setSceneInitialized(true);
+    }
+  }, [sceneInitialized]);
 
   const addDeck = (id: DeckNames) => {
     if (!decksRef.current.has(id) && sceneRef.current) {
@@ -75,7 +65,7 @@ export const MixerDecksProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const getDeck = (id: DeckNames): MixerDeck => {
-    return decksRef.current.get(id);
+    return decksRef.current.get(id)!;
   };
 
   const removeDeck = (id: DeckNames) => {
@@ -86,7 +76,7 @@ export const MixerDecksProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const getScene = (): TimelineGenerator => {
-    return sceneRef.current;
+    return sceneRef.current!;
   };
 
   return (
@@ -95,7 +85,7 @@ export const MixerDecksProvider: React.FC<{ children: React.ReactNode }> = ({
         addDeck,
         getDeck,
         removeDeck,
-        handleCameraChange,
+        initScene,
         sceneInitialized,
         getScene,
       }}
